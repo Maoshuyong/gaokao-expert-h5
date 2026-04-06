@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>高报专家 - 让志愿填报不再迷茫</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="css/home.css">
+</head>
+<body>
+    <!-- 登录页 -->
+    <div id="login-page" class="page active">
+        <div class="login-container">
+            <div class="logo-section">
+                <div class="logo-icon">🎓</div>
+                <h1 class="logo-title">高报专家</h1>
+                <p class="logo-subtitle">让志愿填报不再迷茫</p>
+            </div>
+            
+            <div class="login-form">
+                <div class="input-group">
+                    <span class="input-icon">📱</span>
+                    <input type="tel" id="phone" placeholder="请输入手机号" maxlength="11">
+                </div>
+                
+                <div class="input-group code-group">
+                    <span class="input-icon">🔐</span>
+                    <input type="text" id="code" placeholder="验证码" maxlength="6">
+                    <button id="send-code" class="code-btn">获取验证码</button>
+                </div>
+                
+                <button id="login-btn" class="login-btn">登录</button>
+                
+                <div class="login-options">
+                    <div class="divider">
+                        <span>或</span>
+                    </div>
+                    <button id="wechat-login" class="wechat-btn">
+                        <span class="wechat-icon">💚</span>
+                        微信一键登录
+                    </button>
+                </div>
+            </div>
+            
+            <div class="login-footer">
+                <p>登录即表示同意 <a href="#">用户协议</a> 和 <a href="#">隐私政策</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 首页 -->
+    <div id="home-page" class="page">
+        <div class="home-container">
+            <div class="home-header">
+                <div class="user-info">
+                    <div class="avatar">👤</div>
+                    <div class="user-text">
+                        <span class="greeting">Hi，家长/同学</span>
+                        <span class="user-status">体验版用户</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <span class="vip-badge">免费体验</span>
+                </div>
+            </div>
+            
+            <div class="hero-section">
+                <h2>高考志愿填报</h2>
+                <h3>AI专家帮你找到方向</h3>
+                <p>不是给你答案，而是帮你问出真问题</p>
+                <button id="start-chat" class="start-btn">开始咨询</button>
+            </div>
+            
+            <div class="features-section">
+                <div class="feature-card">
+                    <span class="feature-icon">🎯</span>
+                    <h4>深度追问</h4>
+                    <p>帮你找到真正想要的</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">📊</span>
+                    <h4>专业分析</h4>
+                    <p>生成个性化预案</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">📝</span>
+                    <h4>Word报告</h4>
+                    <p>可下载可分享</p>
+                </div>
+            </div>
+            
+            <div class="stats-section">
+                <div class="stat-item">
+                    <span class="stat-num">10</span>
+                    <span class="stat-label">次免费对话</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-num">0</span>
+                    <span class="stat-label">已使用</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-num">0</span>
+                    <span class="stat-label">生成报告</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bottom-nav">
+            <div class="nav-item active">
+                <span class="nav-icon">🏠</span>
+                <span>首页</span>
+            </div>
+            <div class="nav-item" onclick="showPage('chat')">
+                <span class="nav-icon">💬</span>
+                <span>对话</span>
+            </div>
+            <div class="nav-item" onclick="showPage('member')">
+                <span class="nav-icon">👤</span>
+                <span>我的</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 对话页 -->
+    <div id="chat-page" class="page">
+        <div class="chat-container">
+            <div class="chat-header">
+                <button class="back-btn" onclick="showPage('home')">←</button>
+                <div class="chat-title">
+                    <span class="expert-avatar">🎓</span>
+                    <span>高报专家</span>
+                </div>
+                <button class="menu-btn">⋮</button>
+            </div>
+            
+            <div class="chat-messages" id="messages">
+                <div class="message bot">
+                    <div class="msg-avatar">🎓</div>
+                    <div class="msg-content">
+                        <p>你好！我是高报专家 🎓</p>
+                        <p>在开始之前，我想先了解一下：</p>
+                        <p><strong>你是考生本人，还是家长？</strong></p>
+                    </div>
+                </div>
+                <div class="quick-replies">
+                    <button class="quick-btn" onclick="sendQuickReply('我是考生')">我是考生</button>
+                    <button class="quick-btn" onclick="sendQuickReply('我是家长')">我是家长</button>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <textarea id="user-input" placeholder="输入消息..." rows="1"></textarea>
+                <button id="send-btn" onclick="sendMessage()">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 会员页 -->
+    <div id="member-page" class="page">
+        <div class="member-container">
+            <div class="member-header">
+                <div class="member-avatar">👤</div>
+                <div class="member-info">
+                    <span class="member-name">体验用户</span>
+                    <span class="member-status">免费体验版</span>
+                </div>
+            </div>
+            
+            <div class="usage-section">
+                <h3>使用情况</h3>
+                <div class="usage-bar">
+                    <div class="usage-progress" style="width: 0%"></div>
+                </div>
+                <div class="usage-text">
+                    <span>已使用 0 次</span>
+                    <span>剩余 10 次</span>
+                </div>
+            </div>
+            
+            <div class="vip-cards">
+                <div class="vip-card">
+                    <div class="vip-badge">体验版</div>
+                    <div class="vip-price">免费</div>
+                    <div class="vip-features">
+                        <p>✓ 10次AI对话</p>
+                        <p>✗ 不含报告</p>
+                    </div>
+                    <button class="vip-btn current">当前版本</button>
+                </div>
+                <div class="vip-card popular">
+                    <div class="vip-badge">推荐</div>
+                    <div class="vip-price">¥99</div>
+                    <div class="vip-name">进阶版</div>
+                    <div class="vip-features">
+                        <p>✓ 无限对话</p>
+                        <p>✓ 1次完整报告</p>
+                    </div>
+                    <button class="vip-btn">立即购买</button>
+                </div>
+                <div class="vip-card">
+                    <div class="vip-badge">月卡</div>
+                    <div class="vip-price">¥299</div>
+                    <div class="vip-features">
+                        <p>✓ 无限对话</p>
+                        <p>✓ 3次报告/月</p>
+                    </div>
+                    <button class="vip-btn">立即购买</button>
+                </div>
+            </div>
+            
+            <div class="member-menu">
+                <div class="menu-item">
+                    <span>📋 历史记录</span>
+                    <span>→</span>
+                </div>
+                <div class="menu-item">
+                    <span>📄 我的报告</span>
+                    <span>→</span>
+                </div>
+                <div class="menu-item">
+                    <span>⚙️ 设置</span>
+                    <span>→</span>
+                </div>
+                <div class="menu-item">
+                    <span>📞 联系客服</span>
+                    <span>→</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bottom-nav">
+            <div class="nav-item" onclick="showPage('home')">
+                <span class="nav-icon">🏠</span>
+                <span>首页</span>
+            </div>
+            <div class="nav-item" onclick="showPage('chat')">
+                <span class="nav-icon">💬</span>
+                <span>对话</span>
+            </div>
+            <div class="nav-item active">
+                <span class="nav-icon">👤</span>
+                <span>我的</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

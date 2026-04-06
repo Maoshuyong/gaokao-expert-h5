@@ -1,0 +1,169 @@
+/* 登录页样式 */
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px 24px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+}
+
+.logo-section {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.logo-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.logo-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 8px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.logo-subtitle {
+    font-size: 16px;
+    color: rgba(255,255,255,0.9);
+}
+
+.login-form {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 32px 24px;
+    box-shadow: var(--shadow);
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.input-group:focus-within {
+    border-color: var(--primary);
+    background: var(--white);
+}
+
+.input-icon {
+    font-size: 20px;
+    margin-right: 12px;
+}
+
+.input-group input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    color: var(--text);
+    outline: none;
+}
+
+.input-group input::placeholder {
+    color: var(--text-light);
+}
+
+.code-group {
+    position: relative;
+}
+
+.code-btn {
+    position: absolute;
+    right: 8px;
+    background: var(--primary);
+    color: var(--white);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.code-btn:disabled {
+    background: var(--text-light);
+    opacity: 0.6;
+}
+
+.login-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 8px;
+    box-shadow: 0 4px 15px rgba(155, 89, 182, 0.4);
+}
+
+.login-btn:active {
+    box-shadow: 0 2px 10px rgba(155, 89, 182, 0.4);
+}
+
+.login-options {
+    margin-top: 24px;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.divider span {
+    padding: 0 16px;
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+.wechat-btn {
+    width: 100%;
+    background: #07C160;
+    color: var(--white);
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.wechat-icon {
+    font-size: 20px;
+}
+
+.login-footer {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+}
+
+.login-footer a {
+    color: var(--white);
+    text-decoration: underline;
+}
