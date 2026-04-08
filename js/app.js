@@ -240,11 +240,18 @@ async function checkConnection() {
     statusEl.className = 'conn-status checking';
 
     try {
-        const response = await fetch(`${API_CONFIG.baseURL}/v1/models`, {
-            method: 'GET',
+        // 用简单的 chat 请求测试连接
+        const response = await fetch(`${API_CONFIG.baseURL}/v1/chat/completions`, {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${API_CONFIG.token}`
-            }
+            },
+            body: JSON.stringify({
+                model: 'default',
+                messages: [{ role: 'user', content: 'ping' }],
+                max_tokens: 5
+            })
         });
 
         if (response.ok) {
@@ -252,12 +259,17 @@ async function checkConnection() {
             statusEl.className = 'conn-status connected';
             statusEl.title = 'API连接正常';
         } else {
-            throw new Error('API返回错误');
+            const errText = await response.text();
+            console.error('API错误:', response.status, errText);
+            statusEl.textContent = '🔴'; // disconnected
+            statusEl.className = 'conn-status disconnected';
+            statusEl.title = `API错误: ${response.status}`;
         }
     } catch (error) {
+        console.error('连接失败:', error);
         statusEl.textContent = '🔴'; // disconnected
         statusEl.className = 'conn-status disconnected';
-        statusEl.title = 'API连接失败，请检查隧道是否运行';
+        statusEl.title = `连接失败: ${error.message}`;
     }
 }
 
