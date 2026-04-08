@@ -261,12 +261,16 @@ async function checkConnection() {
         } else {
             const errText = await response.text();
             console.error('API错误:', response.status, errText);
+            // 弹窗显示错误，方便手机调试
+            alert('API错误 ' + response.status + ':\n' + errText.substring(0, 200));
             statusEl.textContent = '🔴'; // disconnected
             statusEl.className = 'conn-status disconnected';
             statusEl.title = `API错误: ${response.status}`;
         }
     } catch (error) {
         console.error('连接失败:', error);
+        // 弹窗显示错误，方便手机调试
+        alert('连接失败:\n' + error.message + '\n\nAPI地址: ' + API_CONFIG.baseURL);
         statusEl.textContent = '🔴'; // disconnected
         statusEl.className = 'conn-status disconnected';
         statusEl.title = `连接失败: ${error.message}`;
