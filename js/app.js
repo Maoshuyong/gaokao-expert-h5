@@ -5,7 +5,7 @@
 const API_CONFIG = {
     // OpenClaw 网关公网地址（通过 localhost.run 隧道）
     // 格式: https://xxxx.lhr.life
-    baseURL: 'https://a02008d867dfe2.lhr.life',  // ← 2026-04-08 12:37 更新
+    baseURL: 'https://d0211ca6114e7a.lhr.life',  // ← 2026-04-08 12:46 更新
     token: '9cd860387f...'  // 从 openclaw.json 获取的 token
 };
 
