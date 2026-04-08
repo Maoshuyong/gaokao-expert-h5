@@ -61,3 +61,19 @@ button:active {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* API连接状态指示器 */
+.conn-status {
+    font-size: 10px;
+    margin-left: 6px;
+    cursor: help;
+}
+.conn-status.connected {
+    color: var(--success);
+}
+.conn-status.disconnected {
+    color: var(--danger);
+}
+.conn-status.checking {
+    color: var(--warning);
+}

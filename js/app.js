@@ -1,5 +1,14 @@
 // 高报专家 H5 应用
 
+// API 配置
+// ⚠️ 重要：每次重启隧道后，需要更新这里的 baseURL
+const API_CONFIG = {
+    // OpenClaw 网关公网地址（通过 localhost.run 隧道）
+    // 格式: https://xxxx.lhr.life
+    baseURL: 'https://a02008d867dfe2.lhr.life',  // ← 2026-04-08 12:37 更新
+    token: '9cd860387f...'  // 从 openclaw.json 获取的 token
+};
+
 // 状态管理
 const state = {
     isLoggedIn: false,
@@ -97,45 +106,88 @@ const messagesContainer = document.getElementById('messages');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 
+// 调用 OpenClaw API
+async function callOpenClawAPI(message) {
+    try {
+        const response = await fetch(`${API_CONFIG.baseURL}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_CONFIG.token}`
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20241022',
+                messages: [
+                    {
+                        role: 'system',
+                        content: '你是高考志愿填报专家，擅长根据学生分数、排名、兴趣和职业规划，提供个性化的志愿填报建议。'
+                    },
+                    ...state.messages.map(m => ({
+                        role: m.type === 'user' ? 'user' : 'assistant',
+                        content: m.text
+                    })),
+                    { role: 'user', content: message }
+                ],
+                max_tokens: 2000,
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API错误: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error) {
+        console.error('API调用失败:', error);
+        return '抱歉，服务暂时不可用，请稍后再试。';
+    }
+}
+
 // 发送消息
-function sendMessage() {
+async function sendMessage() {
     const text = userInput.value.trim();
     if (!text) return;
-    
+
     // 添加用户消息
     addMessage(text, 'user');
+    state.messages.push({ text, type: 'user' });
     userInput.value = '';
-    
-    // TODO: 调用OpenClaw API
-    console.log('发送消息:', text);
-    
-    // 模拟AI回复
-    setTimeout(() => {
-        addMessage('收到你的消息了！让我想想...', 'bot');
-    }, 1000);
+
+    // 显示加载状态
+    const loadingMsg = addMessage('思考中...', 'bot');
+
+    // 调用 OpenClaw API
+    const reply = await callOpenClawAPI(text);
+
+    // 移除加载消息，添加真实回复
+    loadingMsg.remove();
+    addMessage(reply, 'bot');
+    state.messages.push({ text: reply, type: 'bot' });
 }
 
 // 快捷回复
-function sendQuickReply(text) {
+async function sendQuickReply(text) {
     addMessage(text, 'user');
-    
+    state.messages.push({ text, type: 'user' });
+
     // 移除快捷按钮
     const quickReplies = document.querySelector('.quick-replies');
     if (quickReplies) {
         quickReplies.remove();
     }
-    
-    // TODO: 调用OpenClaw API
-    console.log('快捷回复:', text);
-    
-    // 模拟AI追问
-    setTimeout(() => {
-        if (text === '我是家长') {
-            addMessage('好的，家长您好！请问孩子是今年高考吗？能告诉我孩子的分数和选科情况吗？', 'bot');
-        } else {
-            addMessage('好的，同学你好！今年高考感觉怎么样？有没有特别向往的专业或方向？', 'bot');
-        }
-    }, 1000);
+
+    // 显示加载状态
+    const loadingMsg = addMessage('思考中...', 'bot');
+
+    // 调用 OpenClaw API
+    const reply = await callOpenClawAPI(text);
+
+    // 移除加载消息，添加真实回复
+    loadingMsg.remove();
+    addMessage(reply, 'bot');
+    state.messages.push({ text: reply, type: 'bot' });
 }
 
 // 添加消息到界面
@@ -158,9 +210,11 @@ function addMessage(text, type) {
     msgDiv.appendChild(content);
     
     messagesContainer.appendChild(msgDiv);
-    
+
     // 滚动到底部
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    return msgDiv;
 }
 
 // 输入框自动调整高度
@@ -177,6 +231,36 @@ userInput?.addEventListener('keydown', (e) => {
     }
 });
 
+// 检查 API 连接状态
+async function checkConnection() {
+    const statusEl = document.getElementById('conn-status');
+    if (!statusEl) return;
+
+    statusEl.textContent = '🟡'; // checking
+    statusEl.className = 'conn-status checking';
+
+    try {
+        const response = await fetch(`${API_CONFIG.baseURL}/v1/models`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${API_CONFIG.token}`
+            }
+        });
+
+        if (response.ok) {
+            statusEl.textContent = '🟢'; // connected
+            statusEl.className = 'conn-status connected';
+            statusEl.title = 'API连接正常';
+        } else {
+            throw new Error('API返回错误');
+        }
+    } catch (error) {
+        statusEl.textContent = '🔴'; // disconnected
+        statusEl.className = 'conn-status disconnected';
+        statusEl.title = 'API连接失败，请检查隧道是否运行';
+    }
+}
+
 // 初始化
 function init() {
     // 检查登录状态
@@ -186,7 +270,10 @@ function init() {
         state.user = JSON.parse(savedUser);
         showPage('home');
     }
-    
+
+    // 检查 API 连接
+    checkConnection();
+
     console.log('高报专家 H5 初始化完成');
 }
 
