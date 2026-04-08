@@ -122,7 +122,7 @@ async function callOpenClawAPI(message) {
                 'Authorization': `Bearer ${API_CONFIG.token}`
             },
             body: JSON.stringify({
-                model: 'claude-3-5-sonnet-20241022',
+                model: 'qclaw/modelroute',
                 messages: [
                     {
                         role: 'system',
