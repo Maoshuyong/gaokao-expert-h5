@@ -1,13 +1,19 @@
 // 高报专家 H5 应用
 
 // API 配置
-// ⚠️ 重要：每次重启隧道后，需要更新这里的 baseURL
-const API_CONFIG = {
-    // OpenClaw 网关公网地址（通过 localhost.run 隧道）
-    // 格式: https://xxxx.lhr.life
-    baseURL: 'https://d0211ca6114e7a.lhr.life',  // ← 2026-04-08 12:46 更新
-    token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'  // 完整 token
+// 自动检测：本地服务器用相对路径，公网用完整URL
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_CONFIG = isLocal ? {
+    // 本地模式：通过同源代理，无CORS问题
+    baseURL: '',
+    token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'
+} : {
+    // 公网模式：需要配置完整的API地址
+    baseURL: 'https://f3c7345f1f499f.lhr.life',
+    token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'
 };
+
+console.log('当前模式:', isLocal ? '本地' : '公网', '- API地址:', API_CONFIG.baseURL || '(同源)');
 
 // 状态管理
 const state = {
