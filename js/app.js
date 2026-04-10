@@ -6,11 +6,11 @@ const isLocal = window.location.hostname === 'localhost' || window.location.host
 const API_CONFIG = isLocal ? {
     // 本地模式：通过同源代理，无CORS问题
     baseURL: '',
-    token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'
+    token: 'gkzhuanye2026'
 } : {
     // 公网模式：需要配置完整的API地址
-    baseURL: 'https://ad6ea9e79a3248.lhr.life',
-    token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'
+    baseURL: 'https://9f152d5e7ea8f3.lhr.life',
+    token: 'gkzhuanye2026'
 };
 
 console.log('当前模式:', isLocal ? '本地' : '公网', '- API地址:', API_CONFIG.baseURL || '(同源)');
