@@ -9,7 +9,7 @@ const API_CONFIG = isLocal ? {
     token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'
 } : {
     // 公网模式：需要配置完整的API地址
-    baseURL: 'https://4a79a1ccdcd465.lhr.life',
+    baseURL: 'https://21f2d632243cb8.lhr.life',
     token: '1654d4a2d9b7f9a8ba9551897f5321d1e56e8f1812c78703'
 };
 
