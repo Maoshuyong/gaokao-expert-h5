@@ -1,6 +1,7 @@
 """
 应用配置
 """
+import os
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -19,8 +20,8 @@ class Settings(BaseSettings):
     # 数据路径
     DATA_DIR: str = "./data"
 
-    # 服务端口
-    PORT: int = 8000
+    # 服务端口 — Render 等云平台通过 PORT 环境变量注入
+    PORT: int = int(os.environ.get("PORT", "8000"))
 
     class Config:
         env_file = ".env"

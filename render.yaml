@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: gaokao-agent
+    runtime: docker
+    plan: free
+    repo: https://github.com/fengweitao/gaokao-agent
+    branch: main
+    dockerContext: backend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: DATABASE_URL
+        value: "sqlite:///./data/gaokao.db"
