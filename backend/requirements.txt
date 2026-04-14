@@ -1,0 +1,11 @@
+# FastAPI 核心
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# 数据库
+sqlalchemy==2.0.25
+
+# 其他工具
+python-dotenv==1.0.1
