@@ -57,6 +57,30 @@ async def startup_event():
     init_db()
     logger.info("数据库初始化完成")
 
+    # 自动填充院校 + 录取数据（仅当 College 表为空时）
+    try:
+        from db import SessionLocal
+        from models.college import College
+        db = SessionLocal()
+        college_count = db.query(College).count()
+        db.close()
+        if college_count == 0:
+            logger.info("院校数据为空，开始填充种子数据...")
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, "seed_gaokao_data.py"],
+                capture_output=True, text=True, timeout=120,
+                cwd=str(Path(__file__).parent)
+            )
+            if result.returncode == 0:
+                logger.info(f"院校数据填充成功: {result.stdout.strip()}")
+            else:
+                logger.warning(f"院校数据填充失败: {result.stderr.strip()}")
+        else:
+            logger.info(f"院校表已有 {college_count} 条数据，跳过填充")
+    except Exception as e:
+        logger.warning(f"院校数据自动填充异常: {e}")
+
     # 自动填充一分一段表（仅当数据为空时）
     try:
         from db import SessionLocal
