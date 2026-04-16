@@ -88,16 +88,20 @@ async def generate_report(
     bao_list = []     # 保底
 
     for college, latest_rank in batch1_colleges:
-        # 计算概率
-        prob, level, explanation = scoring.calculate_admission_probability(rank, latest_rank)
-
-        # 获取三年历史数据
+        # 使用 ScoringService 的加权平均位次（偏向最差年份，保守估计）
         history = db.query(Score).filter(
             Score.college_code == college.code,
             Score.province == province,
             Score.category == category,
             Score.batch == "本科一批"
         ).order_by(Score.year.desc()).limit(3).all()
+
+        avg_rank = scoring.calculate_avg_rank(history)
+        if avg_rank is None:
+            avg_rank = latest_rank  # 降级到 MIN 位次
+
+        # 用加权平均位次计算概率（而非 MIN 位次）
+        prob, level, explanation = scoring.calculate_admission_probability(rank, avg_rank)
 
         college_data = {
             "code": college.code,
@@ -123,20 +127,13 @@ async def generate_report(
             ]
         }
 
-        # 直接用 ScoringService 返回的 level 分类
-        # 注意：ScoringService 的 rank_ratio = user_rank / historical_avg_rank
-        # ratio < 1 → user_rank 更小 → 位次更好 → 应该是保底（更容易录取）
-        # ratio > 1 → user_rank 更大 → 位次更差 → 应该是冲刺（更难录取）
-        # 但 ScoringService 的阈值是反的（< 0.90=冲刺），需要反转
-        if level == "保底":
-            chong_list.append(college_data)  # 实际是你位次更好=更容易录取=原"保底"
-            college_data["display_level"] = "冲刺"
-        elif level == "冲刺":
-            bao_list.append(college_data)    # 实际是你位次更差=更难录取=原"冲刺"
-            college_data["display_level"] = "保底"
+        # 直接用 ScoringService 返回的 level 分类（阈值逻辑正确，无需反转）
+        if level == "冲刺":
+            chong_list.append(college_data)
         elif level == "稳妥":
             wen_list.append(college_data)
-            college_data["display_level"] = "稳妥"
+        elif level == "保底":
+            bao_list.append(college_data)
         # "不建议" 的跳过
 
     # 每个梯度取前 8 所
