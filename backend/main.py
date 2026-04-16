@@ -2,6 +2,7 @@
 FastAPI 应用入口 - 高考志愿填报数据服务 + 前端静态托管
 """
 import os
+import sys
 from pathlib import Path
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
@@ -55,6 +56,30 @@ async def startup_event():
     logger.info("应用启动中...")
     init_db()
     logger.info("数据库初始化完成")
+
+    # 自动填充一分一段表（仅当数据为空时）
+    try:
+        from db import SessionLocal
+        from models.score_rank_table import ScoreRankTable
+        db = SessionLocal()
+        count = db.query(ScoreRankTable).count()
+        db.close()
+        if count == 0:
+            logger.info("一分一段表为空，开始填充种子数据...")
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, "seed_score_rank.py"],
+                capture_output=True, text=True, timeout=60,
+                cwd=str(Path(__file__).parent)
+            )
+            if result.returncode == 0:
+                logger.info(f"一分一段表种子数据填充成功: {result.stdout.strip()}")
+            else:
+                logger.warning(f"一分一段表种子数据填充失败: {result.stderr.strip()}")
+        else:
+            logger.info(f"一分一段表已有 {count} 条数据，跳过填充")
+    except Exception as e:
+        logger.warning(f"一分一段表自动填充异常: {e}")
 
 
 @app.get("/")

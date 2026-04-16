@@ -126,6 +126,38 @@ export async function getControlScores(province: string, year: number): Promise<
   return request(`/api/v1/control-scores?province=${encodeURIComponent(province)}&year=${year}`)
 }
 
+// ========== 一分一段表 ==========
+
+interface ScoreRankResponse {
+  province: string
+  category: string
+  score: number
+  rank: number | null
+  matched_score?: number
+  count_this_score?: number
+  total: number | null
+  year: number
+  method: 'exact' | 'nearest_lower' | 'none'
+  message?: string
+}
+
+/**
+ * 根据分数查询省排名（基于官方一分一段表）
+ * 如果无数据返回 null，允许调用方降级到经验公式
+ */
+export async function getScoreRank(params: {
+  province: string
+  category: string
+  score: number
+  year?: number
+}): Promise<ScoreRankResponse> {
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) searchParams.set(k, String(v))
+  })
+  return request<ScoreRankResponse>(`/api/v1/score-to-rank?${searchParams}`)
+}
+
 // ========== 报告接口 ==========
 
 interface ReportCollege {

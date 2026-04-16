@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store'
-import { getCollegeDetail, getCollegeScores, calculateProbability } from '@/api/client'
+import { getCollegeDetail, getCollegeScores, calculateProbability, getScoreRank } from '@/api/client'
 import type { College, ScoreRecord } from '@/types'
+
+/** 经验公式降级 */
+function fallbackRank(score: number): number {
+  return Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
+}
 
 export default function StepDetail() {
   const { code } = useParams<{ code: string }>()
@@ -29,10 +34,16 @@ export default function StepDetail() {
 
         // 计算概率
         if (score && province && category) {
-          const estimatedRank = Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
+          let rank: number
+          try {
+            const rankRes = await getScoreRank({ province: province!, category: category!, score: score! })
+            rank = rankRes.rank ?? fallbackRank(score!)
+          } catch {
+            rank = fallbackRank(score!)
+          }
           const probRes = await calculateProbability({
             score: score!,
-            rank: estimatedRank,
+            rank,
             province: province!,
             category: category!,
             college_codes: [code!],

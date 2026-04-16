@@ -1,14 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/store'
+import { getScoreRank } from '@/api/client'
+
+/** 经验公式降级 */
+function fallbackRank(score: number): number {
+  return Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
+}
 
 export default function StepChat() {
   const { province, category, score, setStep } = useAppStore()
   setStep(5)
 
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [rankText, setRankText] = useState('加载中...')
 
-  const estimatedRank = Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
-  const basePrompt = `我是${province}${category}考生，高考${score}分（预估省排名约${estimatedRank.toLocaleString()}名），请帮我分析能上哪些大学，推荐合适的志愿方案。`
+  useEffect(() => {
+    if (!province || !category || !score) return
+    getScoreRank({ province, category, score })
+      .then((res) => {
+        if (res.rank) {
+          setRankText(`${res.rank.toLocaleString()}名`)
+        } else {
+          setRankText(`约${fallbackRank(score).toLocaleString()}名（经验估算）`)
+        }
+      })
+      .catch(() => {
+        setRankText(`约${fallbackRank(score).toLocaleString()}名（经验估算）`)
+      })
+  }, [province, category, score])
+
+  const basePrompt = `我是${province}${category}考生，高考${score}分（省排名约${rankText}），请帮我分析能上哪些大学，推荐合适的志愿方案。`
 
   const advancedPrompts = [
     { label: '🔍 冲刺 985/211', prompt: `${basePrompt}\n\n请重点帮我分析能冲刺哪些985和211大学，按录取概率从高到低排列。` },

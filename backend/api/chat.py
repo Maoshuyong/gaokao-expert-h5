@@ -10,7 +10,7 @@ import uuid
 from sqlalchemy import func
 from db import get_db
 from services.scoring_service import ScoringService
-from models import College, Score
+from models import College, Score, ScoreRankTable
 
 router = APIRouter(prefix="/api/v1", tags=["tools"])
 
@@ -314,6 +314,93 @@ async def get_control_scores(
         "year": year,
         "control_scores": list(result.values())
     }
+
+
+# ========== 一分一段表工具 ==========
+
+@router.get("/score-to-rank", tags=["reference"])
+async def score_to_rank(
+    province: str = Query(..., description="省份"),
+    category: str = Query(..., description="科类：文科/理科/物理类/历史类"),
+    score: int = Query(..., ge=0, le=750, description="高考分数"),
+    year: int = Query(2024, description="年份"),
+    db: Session = Depends(get_db)
+):
+    """
+    分数转省排名（基于一分一段表）
+
+    根据省份、科类和分数，查询对应年份的官方一分一段表，
+    返回精确的省排名（位次）。
+
+    如果该分数没有精确匹配，返回下一个较低分数的位次。
+    """
+    # 科类别名映射（兼容新旧高考命名）
+    category_alias = {"历史类": "文科", "物理类": "理科"}
+    query_category = category_alias.get(category, category)
+
+    # 先尝试精确匹配
+    row = db.query(ScoreRankTable).filter(
+        ScoreRankTable.year == year,
+        ScoreRankTable.province == province,
+        ScoreRankTable.category == query_category,
+        ScoreRankTable.score == score
+    ).first()
+
+    if row:
+        return {
+            "province": province,
+            "category": category,
+            "score": score,
+            "rank": row.cumulative_count,
+            "count_this_score": row.count_this_score,
+            "total": _get_total_test_takers(db, year, province, query_category),
+            "year": year,
+            "method": "exact"
+        }
+
+    # 没有精确匹配时，找低于该分数的最高分对应的位次
+    nearest = db.query(ScoreRankTable).filter(
+        ScoreRankTable.year == year,
+        ScoreRankTable.province == province,
+        ScoreRankTable.category == query_category,
+        ScoreRankTable.score < score
+    ).order_by(ScoreRankTable.score.desc()).first()
+
+    if nearest:
+        return {
+            "province": province,
+            "category": category,
+            "score": score,
+            "rank": nearest.cumulative_count,
+            "matched_score": nearest.score,
+            "count_this_score": nearest.count_this_score,
+            "total": _get_total_test_takers(db, year, province, query_category),
+            "year": year,
+            "method": "nearest_lower"
+        }
+
+    # 完全无数据
+    return {
+        "province": province,
+        "category": category,
+        "score": score,
+        "rank": None,
+        "total": None,
+        "year": year,
+        "method": "none",
+        "message": f"暂无 {province} {query_category} {year} 年的一分一段表数据"
+    }
+
+
+def _get_total_test_takers(db: Session, year: int, province: str, category: str) -> Optional[int]:
+    """获取该省该科类考生总数（取最低分的累计人数）"""
+    row = db.query(ScoreRankTable).filter(
+        ScoreRankTable.year == year,
+        ScoreRankTable.province == province,
+        ScoreRankTable.category == category,
+        ScoreRankTable.cumulative_count.isnot(None)
+    ).order_by(ScoreRankTable.score.asc()).first()
+    return row.cumulative_count if row else None
 
 
 # ========== 辅助函数 ==========

@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store'
-import { recommendColleges, calculateProbability } from '@/api/client'
+import { recommendColleges, calculateProbability, getScoreRank } from '@/api/client'
 import type { College } from '@/types'
+
+/** 经验公式降级 */
+function fallbackRank(score: number): number {
+  return Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
+}
 
 const TABS = ['全部', '冲刺', '稳妥', '保底'] as const
 type Tab = (typeof TABS)[number]
@@ -31,12 +36,18 @@ export default function StepRecommend() {
     setLoading(true)
     try {
       setStep(3)
-      const estimatedRank = Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
+      let rank: number
+      try {
+        const rankRes = await getScoreRank({ province, category, score })
+        rank = rankRes.rank ?? fallbackRank(score)
+      } catch {
+        rank = fallbackRank(score)
+      }
       const res = await recommendColleges({
         province,
         category,
         score,
-        rank: estimatedRank,
+        rank,
         page,
         page_size: 20,
         is_985: filter985 || undefined,
@@ -49,7 +60,7 @@ export default function StepRecommend() {
       if (codes.length > 0) {
         const probRes = await calculateProbability({
           score,
-          rank: estimatedRank,
+          rank,
           province,
           category,
           college_codes: codes,

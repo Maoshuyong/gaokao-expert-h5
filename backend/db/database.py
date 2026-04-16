@@ -35,5 +35,5 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db():
     """初始化数据库"""
-    from models import college, score, profile, conversation
+    from models import college, score, profile, conversation, score_rank_table
     Base.metadata.create_all(bind=engine)

@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store'
-import { generateReport, type ReportResponse, type ReportCollege } from '@/api/client'
+import { generateReport, getScoreRank, type ReportResponse, type ReportCollege } from '@/api/client'
+
+/** 经验公式降级 */
+function fallbackRank(score: number): number {
+  return Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
+}
 
 export default function StepReport() {
   const navigate = useNavigate()
@@ -14,12 +19,24 @@ export default function StepReport() {
     setStep(6)
     setLoading(true)
 
-    const estimatedRank = Math.max(1, Math.round(300000 * Math.pow((750 - score) / 650, 2.5)))
-
-    generateReport({ province, category, score, rank: estimatedRank })
-      .then(setReport)
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    async function fetchReport() {
+      try {
+        let rank: number
+        try {
+          const rankRes = await getScoreRank({ province, category, score })
+          rank = rankRes.rank ?? fallbackRank(score)
+        } catch {
+          rank = fallbackRank(score)
+        }
+        const data = await generateReport({ province, category, score, rank })
+        setReport(data)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchReport()
   }, [province, category, score])
 
   if (loading) {
