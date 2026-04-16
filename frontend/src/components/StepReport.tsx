@@ -304,7 +304,7 @@ function CollegeCard({ college, idx, color, onClick, isErben }: {
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <span>{college.province}</span>
               {college.type && <span>· {college.type}</span>}
-              {college.enrollment && <span>· 招{college.enrollment}人</span>}
+              {college.history?.[0]?.enrollment && <span>· 招{college.history[0].enrollment}人</span>}
             </div>
           </div>
         </div>
