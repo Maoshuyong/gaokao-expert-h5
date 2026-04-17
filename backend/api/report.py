@@ -57,10 +57,12 @@ async def generate_report(
     position = _get_position(yiben_diff, erben_diff)
 
     # ========== 2. 查找匹配院校（本一批） ==========
-    # 找所有有该省该科类录取数据的院校，按最新位次排序
-    latest_rank_sub = db.query(
+    # 用历史「最差年份位次」(MAX min_rank) 作为院校入池基准。
+    # 理由：概率计算也用最差年份加权值，两步标准必须一致；
+    #       用 MIN 会把院校门槛刷到最乐观值，导致低层次院校错误入池。
+    worst_rank_sub = db.query(
         Score.college_code,
-        func.min(Score.min_rank).label("min_rank_val")
+        func.max(Score.min_rank).label("worst_rank_val")  # 最差年份位次（数字最大）
     ).filter(
         Score.province == province,
         Score.category == category,
@@ -68,27 +70,29 @@ async def generate_report(
         Score.min_rank.isnot(None)
     ).group_by(Score.college_code).subquery()
 
-    # 扩大搜索范围：rank 上下 50%
-    rank_upper = int(rank * 0.3)  # 冲刺区上界
-    rank_lower = int(rank * 2.0)  # 保底区下界
+    # 搜索范围基于「最差年份位次」：
+    # - 冲刺上界：院校最差年份位次 >= rank * 0.75（院校门槛比你好，但不超过 25%）
+    # - 保底下界：院校最差年份位次 <= rank * 1.5（院校门槛比你差，最多差 50%）
+    rank_upper = int(rank * 0.75)   # 冲刺区上界（院校比你好最多25%）
+    rank_lower = int(rank * 1.5)    # 保底区下界（院校比你差最多50%）
 
     batch1_colleges = db.query(
         College,
-        latest_rank_sub.c.min_rank_val.label("latest_rank")
+        worst_rank_sub.c.worst_rank_val.label("worst_rank")
     ).join(
-        latest_rank_sub, College.code == latest_rank_sub.c.college_code
+        worst_rank_sub, College.code == worst_rank_sub.c.college_code
     ).filter(
-        latest_rank_sub.c.min_rank_val >= rank_upper,
-        latest_rank_sub.c.min_rank_val <= rank_lower
-    ).order_by(latest_rank_sub.c.min_rank_val.asc()).all()
+        worst_rank_sub.c.worst_rank_val >= rank_upper,
+        worst_rank_sub.c.worst_rank_val <= rank_lower
+    ).order_by(worst_rank_sub.c.worst_rank_val.asc()).all()
 
     # ========== 3. 分类为冲稳保 ==========
     chong_list = []   # 冲刺
     wen_list = []     # 稳妥
     bao_list = []     # 保底
 
-    for college, latest_rank in batch1_colleges:
-        # 使用 ScoringService 的加权平均位次（偏向最差年份，保守估计）
+    for college, worst_rank in batch1_colleges:
+        # 获取三年历史数据
         history = db.query(Score).filter(
             Score.college_code == college.code,
             Score.province == province,
@@ -96,11 +100,11 @@ async def generate_report(
             Score.batch == "本科一批"
         ).order_by(Score.year.desc()).limit(3).all()
 
+        # 用加权平均位次（偏向最差年份）计算概率
         avg_rank = scoring.calculate_avg_rank(history)
         if avg_rank is None:
-            avg_rank = latest_rank  # 降级到 MIN 位次
+            avg_rank = worst_rank  # 降级：用最差年份位次（语义一致）
 
-        # 用加权平均位次计算概率（而非 MIN 位次）
         prob, level, explanation = scoring.calculate_admission_probability(rank, avg_rank)
 
         college_data = {
@@ -112,10 +116,10 @@ async def generate_report(
             "is_985": college.is_985,
             "is_211": college.is_211,
             "is_double_first": college.is_double_first,
-            "latest_rank": latest_rank,
+            "latest_rank": worst_rank,  # 对外暴露最差年份位次，更保守
             "probability": round(prob, 2),
             "level": level,
-            "margin": rank - latest_rank,  # 正=你位次比学校差(落后)，负=你位次比学校好(领先)
+            "margin": rank - worst_rank,  # 正=你位次比学校差(落后)，负=你位次比学校好(领先)
             "history": [
                 {
                     "year": h.year,
@@ -127,14 +131,14 @@ async def generate_report(
             ]
         }
 
-        # 直接用 ScoringService 返回的 level 分类（阈值逻辑正确，无需反转）
+        # ScoringService 的 level 直接对应冲稳保（无需反转）
         if level == "冲刺":
             chong_list.append(college_data)
         elif level == "稳妥":
             wen_list.append(college_data)
         elif level == "保底":
             bao_list.append(college_data)
-        # "不建议" 的跳过
+        # "不建议" 院校跳过（不在有效候选范围内）
 
     # 每个梯度取前 8 所
     chong_top = chong_list[:8]
@@ -142,9 +146,10 @@ async def generate_report(
     bao_top = bao_list[:8]
 
     # ========== 4. 本二批保底 ==========
+    # 同样用最差年份位次（MAX）作为基准
     erben_rank_sub = db.query(
         Score.college_code,
-        func.min(Score.min_rank).label("min_rank_val")
+        func.max(Score.min_rank).label("worst_rank_val")
     ).filter(
         Score.province == province,
         Score.category == category,
@@ -154,16 +159,16 @@ async def generate_report(
 
     erben_results = db.query(
         College,
-        erben_rank_sub.c.min_rank_val.label("latest_rank")
+        erben_rank_sub.c.worst_rank_val.label("worst_rank")
     ).join(
         erben_rank_sub, College.code == erben_rank_sub.c.college_code
     ).filter(
-        erben_rank_sub.c.min_rank_val >= rank,
-        erben_rank_sub.c.min_rank_val <= rank * 2.5
-    ).order_by(erben_rank_sub.c.min_rank_val.asc()).limit(6).all()
+        erben_rank_sub.c.worst_rank_val >= rank,       # 院校最差年份位次 >= 考生位次（院校门槛比你差）
+        erben_rank_sub.c.worst_rank_val <= rank * 2.0  # 最多差 2 倍
+    ).order_by(erben_rank_sub.c.worst_rank_val.asc()).limit(6).all()
 
     erben_list = []
-    for college, latest_rank in erben_results:
+    for college, worst_rank in erben_results:
         history = db.query(Score).filter(
             Score.college_code == college.code,
             Score.province == province,
@@ -171,7 +176,10 @@ async def generate_report(
             Score.batch == "本科二批"
         ).order_by(Score.year.desc()).limit(3).all()
 
-        prob, level, _ = scoring.calculate_admission_probability(rank, latest_rank)
+        avg_rank = scoring.calculate_avg_rank(history)
+        if avg_rank is None:
+            avg_rank = worst_rank
+        prob, level, _ = scoring.calculate_admission_probability(rank, avg_rank)
         erben_list.append({
             "code": college.code,
             "name": college.name,
@@ -181,10 +189,10 @@ async def generate_report(
             "is_985": college.is_985,
             "is_211": college.is_211,
             "is_double_first": college.is_double_first,
-            "latest_rank": latest_rank,
+            "latest_rank": worst_rank,
             "probability": round(prob, 2),
             "level": level,
-            "margin": rank - latest_rank,
+            "margin": rank - worst_rank,
             "batch": "本科二批",
             "history": [
                 {"year": h.year, "min_score": h.min_score, "min_rank": h.min_rank, "enrollment": h.enrollment}

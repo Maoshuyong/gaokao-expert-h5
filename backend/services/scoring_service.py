@@ -21,11 +21,11 @@ class ScoringService:
     """录取概率计算服务"""
 
     # 档位阈值（rank_ratio 区间）
-    # 位次越小越好：ratio < 1 表示考生位次更高
+    # 位次越小越好：ratio < 1 表示考生位次更高（更好）
     LEVEL_THRESHOLDS = {
         "冲刺":   (0.80, 1.05),   # 考生位次是院校录取位次的 80%~105%，可以冲一冲
-        "稳妥":   (0.60, 0.80),   # 考生位次是院校录取位次的 60%~80%，比较稳
-        "保底":   (0.30, 0.60),   # 考生位次远低于院校录取位次，稳上
+        "稳妥":   (0.55, 0.80),   # 考生位次是院校录取位次的 55%~80%，比较稳
+        "保底":   (0.01, 0.55),   # 考生位次远低于院校录取位次，稳上（含极端高分）
         "不建议": (1.05, 999.0),  # 考生位次高于院校录取位次 5% 以上，录取困难
     }
 
@@ -98,8 +98,8 @@ class ScoringService:
         # ratio > 1: 考生位次更差（位次数字更大）→ 概率低
         rank_ratio = user_rank / historical_avg_rank
 
-        # 极端高分段（考生位次远优于院校）
-        if rank_ratio < 0.10:
+        # 极端高分段（ratio 极小，远超院校门槛）
+        if rank_ratio < 0.01:
             return 0.99, "保底", "位次远优于该院校历史录取线，录取概率极高"
 
         # 判断档位
@@ -129,9 +129,7 @@ class ScoringService:
                 explanation = self._get_explanation(level, rank_ratio, historical_avg_rank)
                 return round(probability, 2), level, explanation
 
-        # 超出范围
-        if rank_ratio <= 0:
-            return 0.99, "保底", "位次远优于该院校历史录取线，录取概率极高"
+        # 超出所有区间（理论上不应发生，所有正 ratio 均已被覆盖）
         return 0.01, "不建议", "位次远低于该院校历史录取线，录取风险极大"
 
     def _get_explanation(self, level: str, rank_ratio: float, hist_rank: float) -> str:
