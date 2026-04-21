@@ -335,16 +335,29 @@ async def score_to_rank(
     如果该分数没有精确匹配，返回下一个较低分数的位次。
     """
     # 科类别名映射（兼容新旧高考命名）
-    category_alias = {"历史类": "文科", "物理类": "理科"}
-    query_category = category_alias.get(category, category)
+    # 新高考: 物理类/历史类; 旧高考: 理科/文科
+    category_alias = {
+        "历史类": "文科", "文科": "历史类",
+        "物理类": "理科", "理科": "物理类",
+    }
+    alias_category = category_alias.get(category)
 
-    # 先尝试精确匹配
+    # 先用原始 category 查，再尝试别名
     row = db.query(ScoreRankTable).filter(
         ScoreRankTable.year == year,
         ScoreRankTable.province == province,
-        ScoreRankTable.category == query_category,
+        ScoreRankTable.category == category,
         ScoreRankTable.score == score
     ).first()
+    query_category = category
+    if not row and alias_category:
+        row = db.query(ScoreRankTable).filter(
+            ScoreRankTable.year == year,
+            ScoreRankTable.province == province,
+            ScoreRankTable.category == alias_category,
+            ScoreRankTable.score == score
+        ).first()
+        query_category = alias_category
 
     if row:
         return {

@@ -91,9 +91,24 @@ async def startup_event():
         if count == 0:
             logger.info("一分一段表为空，开始填充种子数据...")
             import subprocess
+            # 优先从 CSV 导入，失败则从 JSON 回退
+            seed_script = "seed_score_rank_csv.py"
+            seed_args = [sys.executable, seed_script, "--from-csv"]
+            # 如果 CSV 目录为空，则回退到 JSON
+            csv_dir = Path(__file__).parent / "score_rank_data"
+            csv_files = list(csv_dir.glob("2024_*.csv")) if csv_dir.exists() else []
+            if not csv_files:
+                json_file = Path(__file__).parent / "seed_score_rank_data.json"
+                if json_file.exists():
+                    seed_args = [sys.executable, seed_script, "--from-json"]
+                else:
+                    # 最后回退到旧的硬编码脚本
+                    seed_script = "seed_score_rank.py"
+                    seed_args = [sys.executable, seed_script]
+
             result = subprocess.run(
-                [sys.executable, "seed_score_rank.py"],
-                capture_output=True, text=True, timeout=60,
+                seed_args,
+                capture_output=True, text=True, timeout=120,
                 cwd=str(Path(__file__).parent)
             )
             if result.returncode == 0:
