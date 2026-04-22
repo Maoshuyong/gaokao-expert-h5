@@ -393,13 +393,21 @@ export async function onRequestPost(context) {
       }
       systemPrompt += `\n- 高考年份：${year}年`;
       systemPrompt += `\n- 在查询数据时，请使用${year}年的数据（如果${year}年数据不存在，则使用最接近的历史年份）`;
-      const newGkProvinces312 = ['广东','湖北','河北','江苏','湖南','福建','辽宁','重庆'];
-      const newGkProvinces312Late = { '安徽': 2024, '江西': 2024 };
-      const newGkProvinces33 = ['山东', '浙江', '海南', '北京', '天津', '上海'];
+      // 新高考 3+1+2 实施年份（与 app.js 保持同步）
+      const NEW_GAOKAO_312_YEAR = {
+        '广东': 2021, '湖南': 2021, '湖北': 2021, '河北': 2021,
+        '辽宁': 2021, '江苏': 2021, '福建': 2021, '重庆': 2021,
+        '黑龙江': 2024, '甘肃': 2024, '吉林': 2024, '安徽': 2024,
+        '江西': 2024, '贵州': 2024, '广西': 2024,
+        '陕西': 2025, '四川': 2025, '河南': 2025, '山西': 2025,
+        '内蒙古': 2025, '云南': 2025, '宁夏': 2025, '青海': 2025,
+        '新疆': 2027,
+      };
+      const NEW_GAOKAO_33_YEAR = { '山东': 2020, '浙江': 2020, '海南': 2020, '北京': 2020, '天津': 2020, '上海': 2017 };
 
-      if (newGkProvinces312.includes(province) || (newGkProvinces312Late[province] && year >= newGkProvinces312Late[province])) {
+      if ((NEW_GAOKAO_312_YEAR[province] && year >= NEW_GAOKAO_312_YEAR[province])) {
         systemPrompt += `\n- 考试类型：新高考（3+1+2模式），请按「物理类」和「历史类」分析`;
-      } else if (newGkProvinces33.includes(province)) {
+      } else if (NEW_GAOKAO_33_YEAR[province] && year >= NEW_GAOKAO_33_YEAR[province]) {
         systemPrompt += `\n- 考试类型：新高考（3+3模式，不分文理）`;
       } else {
         systemPrompt += `\n- 考试类型：传统高考（分文科/理科）`;
