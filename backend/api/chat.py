@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 import uuid
+from datetime import datetime
 
 from sqlalchemy import func
 from db import get_db
@@ -97,7 +98,7 @@ class ProbabilityRequest(BaseModel):
     province: str = Field(..., description="所在省份")
     category: str = Field(..., description="科类")
     college_codes: List[str] = Field(..., description="院校代码列表")
-    year: int = Field(2025, description="参考年份")
+    year: Optional[int] = Field(None, description="参考年份，不传则使用当前年份")
 
 
 @router.post("/probability", tags=["scoring"])
@@ -109,11 +110,13 @@ async def calculate_probability(req: ProbabilityRequest, db: Session = Depends(g
     返回每所院校的：概率值、档位（冲刺/稳妥/保底/不建议）、说明。
     """
     scoring = ScoringService(db)
+    # 如果未传年份，使用当前年份
+    year = req.year or datetime.now().year
     results = scoring.batch_calculate_probability(
         user_rank=req.rank,
         college_codes=req.college_codes,
         province=req.province,
-        year=req.year,
+        year=year,
         category=req.category
     )
 
@@ -281,14 +284,98 @@ async def recommend_colleges(
     }
 
 
+# ========== 专业分数线工具 ==========
+
+@router.get("/major-scores", tags=["scoring"])
+async def get_major_scores(
+    college_name: str = Query(..., description="院校名称"),
+    province: str = Query(..., description="招生省份"),
+    category: str = Query(..., description="科类"),
+    year: Optional[int] = Query(None, description="年份，不传则使用当前年份"),
+    db: Session = Depends(get_db)
+):
+    # 如果未传年份，使用当前年份
+    if not year:
+        year = datetime.now().year
+    """
+    查询某所院校在某省某科类某年的各专业录取分数线
+
+    返回该院校各专业的最低分、位次、录取人数等信息。
+    如果该年份数据不可用，自动返回最近一年的数据。
+    """
+    # 先查指定年份
+    scores = db.query(Score).filter(
+        Score.college_name == college_name,
+        Score.province == province,
+        Score.category == category,
+        Score.year == year,
+        Score.major_scores.isnot(None)
+    ).all()
+
+    # 没有数据则回退到最近年份
+    if not scores:
+        latest = db.query(func.max(Score.year)).filter(
+            Score.college_name == college_name,
+            Score.province == province,
+            Score.category == category,
+            Score.major_scores.isnot(None)
+        ).scalar()
+        if latest:
+            scores = db.query(Score).filter(
+                Score.college_name == college_name,
+                Score.province == province,
+                Score.category == category,
+                Score.year == latest,
+                Score.major_scores.isnot(None)
+            ).all()
+            year = latest
+
+    if not scores:
+        return {
+            "college_name": college_name,
+            "province": province,
+            "category": category,
+            "year": year,
+            "major_scores": [],
+            "message": "暂无该院校的专业分数线数据"
+        }
+
+    # 合并所有批次的专业数据
+    import json
+    all_majors = []
+    for s in scores:
+        try:
+            majors = json.loads(s.major_scores)
+            for m in majors:
+                m["batch"] = s.batch
+            all_majors.extend(majors)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 按分数降序排列
+    all_majors.sort(key=lambda x: x.get("score") or 0, reverse=True)
+
+    return {
+        "college_name": college_name,
+        "province": province,
+        "category": category,
+        "year": year,
+        "major_count": len(all_majors),
+        "major_scores": all_majors
+    }
+
+
 # ========== 一分一段表工具（预留） ==========
 
 @router.get("/control-scores", tags=["reference"])
 async def get_control_scores(
     province: str = Query(..., description="省份"),
-    year: int = Query(..., description="年份"),
+    year: Optional[int] = Query(None, description="年份，不传则使用当前年份"),
     db: Session = Depends(get_db)
 ):
+    # 如果未传年份，使用当前年份
+    if not year:
+        year = datetime.now().year
     """
     查询某省某年的控制分数线（一本线/二本线）
 
@@ -323,9 +410,12 @@ async def score_to_rank(
     province: str = Query(..., description="省份"),
     category: str = Query(..., description="科类：文科/理科/物理类/历史类"),
     score: int = Query(..., ge=0, le=750, description="高考分数"),
-    year: int = Query(2024, description="年份"),
+    year: Optional[int] = Query(None, description="年份，不传则使用当前年份"),
     db: Session = Depends(get_db)
 ):
+    # 如果未传年份，使用当前年份
+    if not year:
+        year = datetime.now().year
     """
     分数转省排名（基于一分一段表）
 

@@ -14,12 +14,15 @@ console.log('高报专家 H5 已启动（WorkBuddy Agent 版）');
 const state = {
     isLoggedIn: false,
     user: null,
+    userRole: 'personal',  // 'personal' | 'institution'
+    profiles: [],          // 机构模式下的考生档案列表
+    currentProfileId: null, // 当前选中的考生档案 ID
     messages: [],       // { role: 'user'|'assistant', content: string }
     usageCount: 0,
     maxUsage: Infinity,
     year: 0,            // 高考年份（0 表示未选择，默认当前年）
     province: '',        // 当前选中的考生省份
-    category: '',        // 当前选中的科类（文科/理科/物理类/历史类）
+    category: '',        // 当前选类的科类（文科/理科/物理类/历史类）
     mbti: null           // MBTI 测试结果 { type, name, tags, majors, desc }
 };
 
@@ -70,12 +73,14 @@ function getCategoriesForYear(province, year) {
 
 // ─── 页面元素 ────────────────────────────────────────────
 const pages = {
-    login: document.getElementById('login-page'),
-    home:  document.getElementById('home-page'),
-    chat:  document.getElementById('chat-page'),
-    report: document.getElementById('report-page'),
-    member: document.getElementById('member-page'),
-    mbti:  document.getElementById('mbti-page')
+    role:     document.getElementById('role-page'),
+    login:    document.getElementById('login-page'),
+    home:     document.getElementById('home-page'),
+    chat:     document.getElementById('chat-page'),
+    report:   document.getElementById('report-page'),
+    member:   document.getElementById('member-page'),
+    mbti:     document.getElementById('mbti-page'),
+    profiles: document.getElementById('profiles-page')
 };
 
 // ─── 页面切换 ────────────────────────────────────────────
@@ -85,6 +90,30 @@ function showPage(pageName) {
     if (pageName === 'chat') {
         checkConnection();
     }
+}
+
+// ─── 角色选择 ────────────────────────────────────────────
+function selectRole(role) {
+    state.userRole = role;
+    localStorage.setItem('gaokao_role', role);
+    console.log('角色选择:', role === 'personal' ? '个人用户' : '机构用户');
+    showPage('login');
+}
+
+// 切换回角色选择页（从会员页）
+function resetRole() {
+    if (!confirm('切换身份将清空当前对话记录，确定继续？')) return;
+    localStorage.removeItem('gaokao_role');
+    localStorage.removeItem('gaokao_profiles');
+    localStorage.removeItem('gaokao_current_profile');
+    localStorage.removeItem('gaokao_messages');
+    localStorage.removeItem('gaokao_usage_count');
+    state.userRole = 'personal';
+    state.profiles = [];
+    state.currentProfileId = null;
+    state.messages = [];
+    state.usageCount = 0;
+    showPage('role');
 }
 
 // ─── 登录逻辑 ────────────────────────────────────────────
@@ -132,6 +161,24 @@ function doLogin(user) {
     state.user = user;
     localStorage.setItem('gaokao_user', JSON.stringify(user));
     updateUserUI();
+    updateMemberRoleUI();
+
+    if (state.userRole === 'institution') {
+        updateProfileSwitcherUI();
+        if (state.profiles.length > 0 && !state.currentProfileId) {
+            switchProfile(state.profiles[0].id);
+        } else if (state.currentProfileId) {
+            const p = state.profiles.find(x => x.id === state.currentProfileId);
+            if (p) {
+                loadProfileMessages(state.currentProfileId);
+                const greetEl = document.getElementById('greeting-text');
+                if (greetEl) greetEl.textContent = `Hi，${p.name}`;
+            }
+        } else {
+            resetHomePanel();
+        }
+    }
+
     showPage('home');
 }
 
@@ -1061,6 +1108,10 @@ userInput?.addEventListener('keydown', (e) => {
 function persistState() {
     localStorage.setItem('gaokao_messages',    JSON.stringify(state.messages));
     localStorage.setItem('gaokao_usage_count', state.usageCount);
+    // 机构模式：保存当前档案的对话记录
+    if (state.userRole === 'institution' && state.currentProfileId) {
+        saveProfileMessages(state.currentProfileId);
+    }
 }
 
 function restoreState() {
@@ -1074,6 +1125,377 @@ function restoreState() {
     if (savedYear) {
         state.year = parseInt(savedYear, 10) || 0;
     }
+    // 恢复角色
+    const savedRole = localStorage.getItem('gaokao_role');
+    if (savedRole) state.userRole = savedRole;
+    // 恢复机构模式的考生档案
+    if (state.userRole === 'institution') {
+        try {
+            const savedProfiles = localStorage.getItem('gaokao_profiles');
+            if (savedProfiles) state.profiles = JSON.parse(savedProfiles);
+        } catch (_) {}
+        state.currentProfileId = localStorage.getItem('gaokao_current_profile') || null;
+    }
+}
+
+// ─── 考生档案管理（机构模式） ───────────────────────────
+function generateProfileId() {
+    return 'pf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function saveProfilesToStorage() {
+    localStorage.setItem('gaokao_profiles', JSON.stringify(state.profiles));
+}
+
+function saveProfileMessages(profileId) {
+    if (!profileId) return;
+    const key = `gaokao_profile_msgs_${profileId}`;
+    localStorage.setItem(key, JSON.stringify(state.messages));
+}
+
+function loadProfileMessages(profileId) {
+    if (!profileId) return;
+    const key = `gaokao_profile_msgs_${profileId}`;
+    try {
+        const msgs = localStorage.getItem(key);
+        if (msgs) {
+            state.messages = JSON.parse(msgs);
+            // 同步到全局消息存储
+            localStorage.setItem('gaokao_messages', msgs);
+        } else {
+            state.messages = [];
+            localStorage.setItem('gaokao_messages', '[]');
+        }
+    } catch (_) {
+        state.messages = [];
+    }
+}
+
+function showProfilesPage() {
+    renderProfilesList();
+    showPage('profiles');
+}
+
+function renderProfilesList() {
+    const listEl = document.getElementById('profiles-list');
+    const emptyEl = document.getElementById('profiles-empty');
+    const formEl = document.getElementById('profile-form-panel');
+
+    formEl.style.display = 'none';
+
+    if (state.profiles.length === 0) {
+        listEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+    }
+
+    listEl.style.display = 'block';
+    emptyEl.style.display = 'none';
+
+    listEl.innerHTML = state.profiles.map(p => {
+        const isActive = p.id === state.currentProfileId;
+        const tags = [];
+        if (p.year) tags.push(p.year + '年');
+        if (p.province) tags.push(p.province);
+        if (p.category) tags.push(p.category);
+        if (p.score) tags.push(p.score + '分');
+        if (p.rank) tags.push('第' + Number(p.rank).toLocaleString() + '名');
+
+        return `
+            <div class="profile-card-item ${isActive ? 'active' : ''}" onclick="switchProfile('${p.id}')">
+                <div class="profile-card-header">
+                    <span class="profile-card-name">${escapeHtml(p.name)}</span>
+                    ${isActive ? '<span class="profile-card-active-badge">当前</span>' : ''}
+                </div>
+                ${tags.length ? `<div class="profile-card-info">${tags.map(t => `<span class="profile-card-tag">${t}</span>`).join('')}</div>` : ''}
+                ${p.notes ? `<p style="font-size:13px;color:var(--text-light);margin-top:4px">${escapeHtml(p.notes)}</p>` : ''}
+                <div class="profile-card-actions" onclick="event.stopPropagation()">
+                    <button onclick="editProfile('${p.id}')">编辑</button>
+                    <button class="delete-btn" onclick="deleteProfile('${p.id}')">删除</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // 更新会员页的档案数量
+    const badge = document.getElementById('profile-count-badge');
+    if (badge) badge.textContent = state.profiles.length;
+}
+
+let editingProfileId = null;
+
+function showAddProfileForm(profileId) {
+    editingProfileId = profileId || null;
+    const formEl = document.getElementById('profile-form-panel');
+    const titleEl = document.getElementById('profile-form-title');
+    const listEl = document.getElementById('profiles-list');
+    const emptyEl = document.getElementById('profiles-empty');
+
+    listEl.style.display = 'none';
+    emptyEl.style.display = 'none';
+    formEl.style.display = 'block';
+
+    if (profileId) {
+        titleEl.textContent = '编辑考生档案';
+        const p = state.profiles.find(x => x.id === profileId);
+        if (p) {
+            document.getElementById('pf-name').value = p.name || '';
+            document.getElementById('pf-year').value = p.year || '';
+            document.getElementById('pf-province').value = p.province || '';
+            document.getElementById('pf-score').value = p.score || '';
+            document.getElementById('pf-rank').value = p.rank || '';
+            document.getElementById('pf-notes').value = p.notes || '';
+            // 刷新科类后设置
+            refreshProfileCategoryOptions();
+            setTimeout(() => {
+                document.getElementById('pf-category').value = p.category || '';
+            }, 50);
+        }
+    } else {
+        titleEl.textContent = '新建考生档案';
+        document.getElementById('pf-name').value = '';
+        document.getElementById('pf-year').value = '';
+        document.getElementById('pf-province').value = '';
+        document.getElementById('pf-category').value = '';
+        document.getElementById('pf-score').value = '';
+        document.getElementById('pf-rank').value = '';
+        document.getElementById('pf-notes').value = '';
+    }
+
+    // 初始化表单里的年份和省份下拉
+    initProfileFormSelects();
+}
+
+function initProfileFormSelects() {
+    const yearSel = document.getElementById('pf-year');
+    const provSel = document.getElementById('pf-province');
+    if (!yearSel || !provSel) return;
+
+    // 年份下拉（只填充一次）
+    if (yearSel.options.length <= 1) {
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear + 1; y >= 2017; y--) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y + '年';
+            yearSel.appendChild(opt);
+        }
+    }
+
+    // 省份下拉（只填充一次）
+    if (provSel.options.length <= 1) {
+        PROVINCES.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            provSel.appendChild(opt);
+        });
+    }
+}
+
+function refreshProfileCategoryOptions() {
+    const catSel = document.getElementById('pf-category');
+    if (!catSel) return;
+    const year = parseInt(document.getElementById('pf-year')?.value, 10);
+    const prov = document.getElementById('pf-province')?.value;
+    catSel.innerHTML = '<option value="">科类</option>';
+    if (!prov || !year) return;
+    const cats = getCategoriesForYear(prov, year);
+    cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        catSel.appendChild(opt);
+    });
+}
+
+// 绑定表单联动事件
+document.getElementById('pf-year')?.addEventListener('change', refreshProfileCategoryOptions);
+document.getElementById('pf-province')?.addEventListener('change', refreshProfileCategoryOptions);
+
+function cancelProfileForm() {
+    editingProfileId = null;
+    renderProfilesList();
+}
+
+function saveProfile() {
+    const name = document.getElementById('pf-name').value.trim();
+    if (!name) { alert('请输入考生姓名'); return; }
+
+    const data = {
+        id: editingProfileId || generateProfileId(),
+        name,
+        year: document.getElementById('pf-year').value || '',
+        province: document.getElementById('pf-province').value || '',
+        category: document.getElementById('pf-category').value || '',
+        score: document.getElementById('pf-score').value || '',
+        rank: document.getElementById('pf-rank').value || '',
+        notes: document.getElementById('pf-notes').value.trim(),
+        createdAt: editingProfileId
+            ? (state.profiles.find(p => p.id === editingProfileId)?.createdAt || new Date().toISOString())
+            : new Date().toISOString()
+    };
+
+    if (editingProfileId) {
+        const idx = state.profiles.findIndex(p => p.id === editingProfileId);
+        if (idx >= 0) state.profiles[idx] = data;
+    } else {
+        state.profiles.push(data);
+    }
+
+    saveProfilesToStorage();
+    editingProfileId = null;
+
+    // 如果没有当前档案，自动选中新创建的
+    if (!state.currentProfileId) {
+        switchProfile(data.id);
+    }
+
+    renderProfilesList();
+}
+
+function editProfile(profileId) {
+    showAddProfileForm(profileId);
+}
+
+function deleteProfile(profileId) {
+    const p = state.profiles.find(x => x.id === profileId);
+    if (!p) return;
+    if (!confirm(`确定删除考生「${p.name}」的档案？`)) return;
+
+    // 清除该档案的对话记录
+    localStorage.removeItem(`gaokao_profile_msgs_${profileId}`);
+
+    state.profiles = state.profiles.filter(x => x.id !== profileId);
+    saveProfilesToStorage();
+
+    // 如果删除的是当前档案，切换到第一个或清空
+    if (state.currentProfileId === profileId) {
+        if (state.profiles.length > 0) {
+            switchProfile(state.profiles[0].id);
+        } else {
+            state.currentProfileId = null;
+            localStorage.removeItem('gaokao_current_profile');
+            state.messages = [];
+            state.usageCount = 0;
+            localStorage.setItem('gaokao_messages', '[]');
+            localStorage.setItem('gaokao_usage_count', '0');
+            resetHomePanel();
+        }
+    }
+
+    renderProfilesList();
+}
+
+function switchProfile(profileId) {
+    if (state.userRole !== 'institution') return;
+
+    // 保存当前档案的对话记录
+    if (state.currentProfileId && state.currentProfileId !== profileId) {
+        saveProfileMessages(state.currentProfileId);
+    }
+
+    state.currentProfileId = profileId;
+    localStorage.setItem('gaokao_current_profile', profileId);
+
+    // 加载新档案的对话记录
+    loadProfileMessages(profileId);
+    state.usageCount = 0;
+
+    // 应用档案信息到首页面板
+    const p = state.profiles.find(x => x.id === profileId);
+    if (p) {
+        if (p.year) {
+            state.year = parseInt(p.year, 10);
+            localStorage.setItem('gaokao_year', state.year);
+            if (quickYearSelect) quickYearSelect.value = state.year;
+        }
+        if (p.province) {
+            state.province = p.province;
+            localStorage.setItem('gaokao_province', state.province);
+            if (quickProvinceSelect) quickProvinceSelect.value = state.province;
+        }
+        if (p.category) {
+            state.category = p.category;
+            localStorage.setItem('gaokao_category', state.category);
+        }
+        refreshCategoryOptions();
+        // 如果有缓存的科类，延迟设置
+        if (p.category && quickCategorySelect) {
+            setTimeout(() => { quickCategorySelect.value = p.category; }, 50);
+        }
+
+        // 填入分数和位次（不持久化，只在输入框中显示）
+        const scoreInput = document.getElementById('quick-score');
+        const rankInput = document.getElementById('quick-rank');
+        if (scoreInput) scoreInput.value = p.score || '';
+        if (rankInput) rankInput.value = p.rank || '';
+    }
+
+    updateProfileSwitcherUI();
+    updateUsageUI();
+
+    // 更新首页问候语
+    const greetEl = document.getElementById('greeting-text');
+    if (greetEl && p) greetEl.textContent = `Hi，${p.name}`;
+
+    console.log('切换考生档案:', p?.name);
+    // 如果在 profiles 页面，刷新列表
+    const profilesPage = document.getElementById('profiles-page');
+    if (profilesPage?.classList.contains('active')) {
+        renderProfilesList();
+    }
+}
+
+function updateProfileSwitcherUI() {
+    const switcher = document.getElementById('profile-switcher');
+    const select = document.getElementById('profile-select');
+    if (!switcher || !select) return;
+
+    if (state.userRole !== 'institution') {
+        switcher.style.display = 'none';
+        return;
+    }
+
+    switcher.style.display = 'block';
+    select.innerHTML = state.profiles.map(p =>
+        `<option value="${p.id}" ${p.id === state.currentProfileId ? 'selected' : ''}>${p.name}${p.province ? ' · ' + p.province : ''}${p.year ? ' · ' + p.year + '年' : ''}</option>`
+    ).join('');
+}
+
+function resetHomePanel() {
+    const greetEl = document.getElementById('greeting-text');
+    if (greetEl) greetEl.textContent = 'Hi，机构用户';
+    const statusEl = document.getElementById('user-status-text');
+    if (statusEl) statusEl.textContent = '请选择或新建考生档案';
+    updateProfileSwitcherUI();
+    updateUsageUI();
+}
+
+function updateMemberRoleUI() {
+    const roleEl = document.getElementById('member-role-text');
+    const avatarEl = document.getElementById('member-avatar');
+    const vipEl = document.getElementById('home-vip-badge');
+    const instSection = document.getElementById('institution-section');
+
+    if (!roleEl) return;
+
+    if (state.userRole === 'institution') {
+        roleEl.textContent = '志愿填报机构';
+        if (avatarEl) avatarEl.textContent = '🏢';
+        if (vipEl) vipEl.textContent = '机构版';
+        if (instSection) instSection.style.display = 'block';
+    } else {
+        roleEl.textContent = '免费体验版';
+        if (avatarEl) avatarEl.textContent = '👤';
+        if (vipEl) vipEl.textContent = '免费体验';
+        if (instSection) instSection.style.display = 'none';
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ─── 初始化 ──────────────────────────────────────────────
@@ -1107,15 +1529,41 @@ function init() {
     // MBTI 结果行点击可重新测试
     document.getElementById('mbti-result-row')?.addEventListener('click', startMbtiTest);
 
-    const savedUser = localStorage.getItem('gaokao_user');
-    if (savedUser) {
-        try {
-            state.user = JSON.parse(savedUser);
-            state.isLoggedIn = true;
-            updateUserUI();
-            showPage('home');
-        } catch (_) {}
+    // 角色初始化：有角色才跳过角色选择页
+    if (state.userRole && localStorage.getItem('gaokao_role')) {
+        // 有角色，检查是否已登录
+        const savedUser = localStorage.getItem('gaokao_user');
+        if (savedUser) {
+            try {
+                state.user = JSON.parse(savedUser);
+                state.isLoggedIn = true;
+                updateUserUI();
+
+                // 机构模式：恢复当前档案
+                if (state.userRole === 'institution') {
+                    updateProfileSwitcherUI();
+                    if (state.currentProfileId) {
+                        const p = state.profiles.find(x => x.id === state.currentProfileId);
+                        if (p) {
+                            loadProfileMessages(state.currentProfileId);
+                            const greetEl = document.getElementById('greeting-text');
+                            if (greetEl) greetEl.textContent = `Hi，${p.name}`;
+                        }
+                    } else if (state.profiles.length > 0) {
+                        // 没有当前档案但有档案列表，自动选第一个
+                        switchProfile(state.profiles[0].id);
+                    }
+                }
+
+                showPage('home');
+            } catch (_) {}
+        } else {
+            // 有角色但未登录，显示登录页
+            showPage('login');
+        }
+        updateMemberRoleUI();
     }
+    // 没有 gaokao_role，停留在 role-page（默认 active）
 
     updateUsageUI();
     console.log('高报专家 H5 初始化完成');

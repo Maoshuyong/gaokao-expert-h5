@@ -1,7 +1,7 @@
 """
 录取分数线模型
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, Index, Text
 from sqlalchemy.sql import func
 from db.database import Base
 
@@ -32,7 +32,7 @@ class Score(Base):
     control_score = Column(Integer, comment="控制线/一本线")
 
     # 专业线（JSON存储）
-    major_scores = Column(String(500), comment="各专业分数线(JSON)")
+    major_scores = Column(Text, comment="各专业分数线JSON")
 
     # 招生
     enrollment = Column(Integer, comment="招生人数")

@@ -9,8 +9,47 @@
     <link rel="stylesheet" href="css/home.css">
 </head>
 <body>
+    <!-- 角色选择页（入口页） -->
+    <div id="role-page" class="page active">
+        <div class="login-container">
+            <div class="logo-section">
+                <div class="logo-icon">🎓</div>
+                <h1 class="logo-title">高报专家</h1>
+                <p class="logo-subtitle">让志愿填报不再迷茫</p>
+            </div>
+
+            <div class="role-cards">
+                <div class="role-card" onclick="selectRole('personal')">
+                    <div class="role-card-icon">👨‍🎓</div>
+                    <h3 class="role-card-title">个人用户</h3>
+                    <p class="role-card-desc">考生或家长，为自己填报志愿</p>
+                    <div class="role-card-features">
+                        <span>AI 智能咨询</span>
+                        <span>个性化分析报告</span>
+                        <span>专业/院校推荐</span>
+                    </div>
+                </div>
+
+                <div class="role-card" onclick="selectRole('institution')">
+                    <div class="role-card-icon">🏢</div>
+                    <h3 class="role-card-title">志愿填报机构</h3>
+                    <p class="role-card-desc">管理多名考生档案，批量服务</p>
+                    <div class="role-card-features">
+                        <span>考生档案管理</span>
+                        <span>一键切换身份</span>
+                        <span>独立对话记录</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-footer">
+                <p>选择您的使用身份</p>
+            </div>
+        </div>
+    </div>
+
     <!-- 登录页 -->
-    <div id="login-page" class="page active">
+    <div id="login-page" class="page">
         <div class="login-container">
             <div class="logo-section">
                 <div class="logo-icon">🎓</div>
@@ -52,16 +91,29 @@
     <!-- 首页 -->
     <div id="home-page" class="page">
         <div class="home-container">
+            <!-- 机构模式：考生切换栏 -->
+            <div class="profile-switcher" id="profile-switcher" style="display:none">
+                <div class="profile-switcher-header">
+                    <span class="profile-switcher-label">📋 考生档案</span>
+                    <button class="profile-add-btn" onclick="showProfilesPage()">+ 管理考生</button>
+                </div>
+                <div class="profile-switcher-body">
+                    <select id="profile-select" class="profile-select" onchange="switchProfile(this.value)">
+                        <!-- 动态填充 -->
+                    </select>
+                </div>
+            </div>
+
             <div class="home-header">
                 <div class="user-info">
-                    <div class="avatar">👤</div>
+                    <div class="avatar" id="home-avatar">👤</div>
                     <div class="user-text">
                         <span class="greeting" id="greeting-text">Hi，家长/同学</span>
                         <span class="user-status" id="user-status-text">体验版用户</span>
                     </div>
                 </div>
                 <div class="header-actions">
-                    <span class="vip-badge">免费体验</span>
+                    <span class="vip-badge" id="home-vip-badge">免费体验</span>
                 </div>
             </div>
 
@@ -153,7 +205,7 @@
         </div>
 
         <div class="bottom-nav">
-            <div class="nav-item active">
+            <div class="nav-item active" onclick="showPage('home')">
                 <span class="nav-icon">🏠</span>
                 <span>首页</span>
             </div>
@@ -299,14 +351,91 @@
         </div>
     </div>
 
+    <!-- 考生档案管理页（机构模式） -->
+    <div id="profiles-page" class="page">
+        <div class="member-container">
+            <div class="mbti-header" style="padding:16px 20px;background:var(--white);border-bottom:1px solid var(--border)">
+                <button class="back-btn" onclick="showPage('home')">←</button>
+                <h3 class="mbti-title">考生档案管理</h3>
+                <button class="profile-add-btn" onclick="showAddProfileForm()" style="font-size:14px;padding:6px 14px">+ 新建</button>
+            </div>
+
+            <!-- 新建/编辑档案表单（默认隐藏） -->
+            <div id="profile-form-panel" style="display:none;padding:20px">
+                <h4 id="profile-form-title" style="margin-bottom:16px;font-size:17px;color:var(--text)">新建考生档案</h4>
+                <div class="input-group">
+                    <span class="input-icon">👤</span>
+                    <input type="text" id="pf-name" placeholder="考生姓名（必填）" maxlength="20">
+                </div>
+                <div class="input-group">
+                    <span class="input-icon">📅</span>
+                    <select id="pf-year" class="info-select" style="border:none;background:transparent;font-size:16px;color:var(--text);width:100%">
+                        <option value="">高考年份</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <span class="input-icon">📍</span>
+                    <select id="pf-province" class="info-select" style="border:none;background:transparent;font-size:16px;color:var(--text);width:100%">
+                        <option value="">考生省份</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <span class="input-icon">📚</span>
+                    <select id="pf-category" class="info-select" style="border:none;background:transparent;font-size:16px;color:var(--text);width:100%">
+                        <option value="">科类</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <span class="input-icon">📊</span>
+                    <input type="number" id="pf-score" placeholder="高考成绩（选填）" min="0" max="750">
+                </div>
+                <div class="input-group">
+                    <span class="input-icon">🏅</span>
+                    <input type="number" id="pf-rank" placeholder="省排名（选填）" min="1">
+                </div>
+                <div class="input-group">
+                    <span class="input-icon">📝</span>
+                    <input type="text" id="pf-notes" placeholder="备注（如：理科偏好、城市倾向）" maxlength="100">
+                </div>
+                <div style="display:flex;gap:12px;margin-top:16px">
+                    <button class="vip-btn" style="flex:1;background:#94A3B8;color:white;padding:14px;font-size:16px;border-radius:10px" onclick="cancelProfileForm()">取消</button>
+                    <button class="login-btn" style="flex:1;padding:14px;font-size:16px" onclick="saveProfile()">保存</button>
+                </div>
+            </div>
+
+            <!-- 档案列表 -->
+            <div id="profiles-list" style="padding:20px">
+                <!-- 动态填充 -->
+            </div>
+
+            <div id="profiles-empty" style="display:none;text-align:center;padding:60px 20px;color:var(--text-light)">
+                <div style="font-size:48px;margin-bottom:16px">📋</div>
+                <h3 style="margin-bottom:8px;color:var(--text)">暂无考生档案</h3>
+                <p style="margin-bottom:24px">点击上方「+ 新建」添加第一位考生</p>
+            </div>
+        </div>
+    </div>
+
     <!-- 会员页 -->
     <div id="member-page" class="page">
         <div class="member-container">
             <div class="member-header">
-                <div class="member-avatar">👤</div>
+                <div class="member-avatar" id="member-avatar">👤</div>
                 <div class="member-info">
                     <span class="member-name" id="member-name-text">体验用户</span>
-                    <span class="member-status">免费体验版</span>
+                    <span class="member-status" id="member-role-text">免费体验版</span>
+                </div>
+            </div>
+
+            <!-- 机构模式：快捷入口 -->
+            <div class="institution-section" id="institution-section" style="display:none">
+                <div class="menu-item" onclick="showProfilesPage()">
+                    <span>📋 考生档案管理</span>
+                    <span id="profile-count-badge" style="background:var(--primary);color:white;border-radius:12px;padding:2px 10px;font-size:12px">0</span>
+                </div>
+                <div class="menu-item" onclick="showPage('home')">
+                    <span>🔄 切换考生</span>
+                    <span>→</span>
                 </div>
             </div>
 
@@ -359,6 +488,10 @@
                 </div>
                 <div class="menu-item">
                     <span>📄 我的报告</span>
+                    <span>→</span>
+                </div>
+                <div class="menu-item" onclick="resetRole()">
+                    <span>🔄 切换身份（个人/机构）</span>
                     <span>→</span>
                 </div>
                 <div class="menu-item">
