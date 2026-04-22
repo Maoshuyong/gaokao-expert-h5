@@ -17,10 +17,56 @@ const state = {
     messages: [],       // { role: 'user'|'assistant', content: string }
     usageCount: 0,
     maxUsage: Infinity,
+    year: 0,            // 高考年份（0 表示未选择，默认当前年）
     province: '',        // 当前选中的考生省份
     category: '',        // 当前选中的科类（文科/理科/物理类/历史类）
     mbti: null           // MBTI 测试结果 { type, name, tags, majors, desc }
 };
+
+// ─── 省份→科类映射（区分新高考/老高考） ─────────────────────
+const PROVINCE_CURRICULUM = {
+    // 新高考 3+1+2（物理类/历史类）
+    '广东': ['物理类', '历史类'], '湖南': ['物理类', '历史类'],
+    '湖北': ['物理类', '历史类'], '河北': ['物理类', '历史类'],
+    '辽宁': ['物理类', '历史类'], '江苏': ['物理类', '历史类'],
+    '福建': ['物理类', '历史类'], '重庆': ['物理类', '历史类'],
+    '安徽': ['物理类', '历史类'], '江西': ['物理类', '历史类'],
+    // 新高考 3+3（综合）
+    '山东': ['综合'], '浙江': ['综合'], '海南': ['综合'],
+    '北京': ['综合'], '天津': ['综合'], '上海': ['综合'],
+    // 老高考（文科/理科）
+    '陕西': ['文科', '理科'], '河南': ['文科', '理科'],
+    '山西': ['文科', '理科'], '四川': ['文科', '理科'],
+    '云南': ['文科', '理科'], '贵州': ['文科', '理科'],
+    '广西': ['文科', '理科'], '甘肃': ['文科', '理科'],
+    '青海': ['文科', '理科'], '宁夏': ['文科', '理科'],
+    '新疆': ['文科', '理科'], '西藏': ['文科', '理科'],
+    '内蒙古': ['文科', '理科'], '黑龙江': ['文科', '理科'],
+    '吉林': ['文科', '理科'],
+};
+
+// 新高考 3+1+2 实施年份（该年份及之后按新高考科目）
+const NEW_GAOKAO_312_YEAR = {
+    '广东': 2021, '湖南': 2021, '湖北': 2021, '河北': 2021,
+    '辽宁': 2021, '江苏': 2021, '福建': 2021, '重庆': 2021,
+    '安徽': 2024, '江西': 2024,
+};
+// 新高考 3+3 实施年份
+const NEW_GAOKAO_33_YEAR = {
+    '山东': 2020, '浙江': 2020, '海南': 2020,
+    '北京': 2020, '天津': 2020, '上海': 2017,
+};
+
+// 根据省份+年份获取科类选项
+function getCategoriesForYear(province, year) {
+    if (!province || !year) return [];
+    const y312 = NEW_GAOKAO_312_YEAR[province];
+    const y33 = NEW_GAOKAO_33_YEAR[province];
+    if (y312 && year >= y312) return ['物理类', '历史类'];
+    if (y33 && year >= y33) return ['综合'];
+    // 老高考或未知的年份
+    return ['文科', '理科'];
+}
 
 // ─── 页面元素 ────────────────────────────────────────────
 const pages = {
@@ -111,6 +157,84 @@ function updateUsageUI() {
     if (statUsed)   statUsed.textContent = state.usageCount;
 }
 
+// ─── 高考年份选择（首页面板） ──────────────────────────────
+const quickYearSelect = document.getElementById('quick-year');
+
+function initYearSelect() {
+    if (!quickYearSelect) return;
+    const currentYear = new Date().getFullYear();
+    // 填充 2017 ~ 当前年份 + 1（留一年余量）
+    for (let y = currentYear + 1; y >= 2017; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y + '年';
+        if (y === currentYear) opt.selected = true;
+        quickYearSelect.appendChild(opt);
+    }
+    // 默认当前年份
+    state.year = currentYear;
+    // 恢复上次选择
+    const saved = localStorage.getItem('gaokao_year');
+    if (saved) {
+        state.year = parseInt(saved, 10) || currentYear;
+        quickYearSelect.value = state.year;
+    }
+}
+
+quickYearSelect?.addEventListener('change', () => {
+    const y = parseInt(quickYearSelect.value, 10);
+    state.year = y || 0;
+    localStorage.setItem('gaokao_year', state.year);
+    // 年份变化时刷新科类选项
+    refreshCategoryOptions();
+    console.log('年份切换:', state.year || '未选择');
+});
+
+// ─── 科类动态刷新 ──────────────────────────────────────
+function refreshCategoryOptions() {
+    if (!quickCategorySelect) return;
+    quickCategorySelect.innerHTML = '';
+    if (!state.province || !state.year) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = !state.province ? '请先选择省份和年份' : '请先选择年份';
+        quickCategorySelect.appendChild(opt);
+        state.category = '';
+        localStorage.removeItem('gaokao_category');
+        return;
+    }
+    const cats = getCategoriesForYear(state.province, state.year);
+    if (!cats.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '暂无该省份科类数据';
+        quickCategorySelect.appendChild(opt);
+        state.category = '';
+        localStorage.removeItem('gaokao_category');
+        return;
+    }
+    // 默认项
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '请选择科类';
+    quickCategorySelect.appendChild(defaultOpt);
+    cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        quickCategorySelect.appendChild(opt);
+    });
+    // 如果之前选的科类仍在列表中，自动恢复
+    const savedCat = localStorage.getItem('gaokao_category');
+    if (savedCat && cats.includes(savedCat)) {
+        state.category = savedCat;
+        quickCategorySelect.value = savedCat;
+    } else {
+        state.category = '';
+        localStorage.removeItem('gaokao_category');
+    }
+}
+
 // ─── 省份选择（首页面板） ──────────────────────────────────
 const quickProvinceSelect = document.getElementById('quick-province');
 
@@ -139,6 +263,8 @@ function initProvinceSelect() {
 quickProvinceSelect?.addEventListener('change', () => {
     state.province = quickProvinceSelect.value;
     localStorage.setItem('gaokao_province', state.province);
+    // 省份变化时刷新科类选项
+    refreshCategoryOptions();
     console.log('省份切换:', state.province || '未选择');
 });
 
@@ -154,13 +280,18 @@ quickCategorySelect?.addEventListener('change', () => {
 // ─── 开始咨询 ────────────────────────────────────────────
 document.getElementById('start-chat')?.addEventListener('click', () => {
     // 必填校验
+    if (!state.year) {
+        alert('请先选择高考年份');
+        quickYearSelect?.focus();
+        return;
+    }
     if (!state.province) {
         alert('请先选择考生省份');
         quickProvinceSelect?.focus();
         return;
     }
     if (!state.category) {
-        alert('请先选择文/理科');
+        alert('请先选择科类');
         quickCategorySelect?.focus();
         return;
     }
@@ -184,7 +315,7 @@ document.getElementById('start-chat')?.addEventListener('click', () => {
             if (score && !rank) infoMsg += '，但我不知道位次';
             if (!score && rank) infoMsg += '，但我不知道具体分数';
         }
-        if (infoMsg) infoMsg += `（${state.province}${state.category}）`;
+        infoMsg += `（${state.year}年${state.province}${state.category}）`;
 
         // 延迟 300ms 发送，让页面切换动画完成
         setTimeout(() => dispatchMessage(infoMsg), 300);
@@ -209,6 +340,7 @@ async function callLLM(userMessage, onChunk, onStatus) {
     };
     if (state.province) payload.province = state.province;
     if (state.category) payload.category = state.category;
+    if (state.year) payload.year = state.year;
 
     const response = await fetch(`${API_CONFIG.baseURL}/v1/chat/completions`, {
         method: 'POST',
@@ -689,10 +821,11 @@ async function generateReport() {
     // 填充封面
     const province = state.province || '未知';
     const category = state.category || '未知';
+    const year = state.year || new Date().getFullYear();
     document.getElementById('cover-title').textContent =
-        `${province}${category} 志愿分析报告`;
+        `${year}年${province}${category} 志愿分析报告`;
     document.getElementById('cover-province').textContent = province;
-    document.getElementById('cover-category').textContent = category;
+    document.getElementById('cover-category').textContent = `${year}年 ${category}`;
     document.getElementById('cover-date').textContent =
         new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -799,6 +932,7 @@ async function callLLMForReport(reportPrompt, onChunk, onStatus) {
     };
     if (state.province) payload.province = state.province;
     if (state.category) payload.category = state.category;
+    if (state.year) payload.year = state.year;
 
     const response = await fetch(`${API_CONFIG.baseURL}/v1/chat/completions`, {
         method: 'POST',
@@ -935,18 +1069,20 @@ function restoreState() {
         if (msgs) state.messages = JSON.parse(msgs);
     } catch (_) {}
     state.usageCount = parseInt(localStorage.getItem('gaokao_usage_count') || '0', 10);
-    // 恢复科类
-    const savedCategory = localStorage.getItem('gaokao_category');
-    if (savedCategory) {
-        state.category = savedCategory;
-        if (quickCategorySelect) quickCategorySelect.value = savedCategory;
+    // 恢复年份
+    const savedYear = localStorage.getItem('gaokao_year');
+    if (savedYear) {
+        state.year = parseInt(savedYear, 10) || 0;
     }
 }
 
 // ─── 初始化 ──────────────────────────────────────────────
 function init() {
     restoreState();
+    initYearSelect();
     initProvinceSelect();
+    // 初始化后刷新科类选项（依赖年份和省份）
+    refreshCategoryOptions();
     restoreMbti();
 
     // MBTI "测一测"按钮

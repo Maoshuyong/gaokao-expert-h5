@@ -42,6 +42,7 @@ const SYSTEM_PROMPT = `你是高考志愿填报专家，张雪峰风格的资深
 4. **第四步：查询详细数据**
    - 对用户感兴趣的关键院校，用 \`lookup_scores\` 查看历年分数线
    - 用 \`get_college_detail\` 查看院校详情
+   - 用 \`get_major_scores\` 查看各专业录取分数线（当用户想了解具体专业录取分数时）
 
 ## 对话流程
 
@@ -67,7 +68,7 @@ const SYSTEM_PROMPT = `你是高考志愿填报专家，张雪峰风格的资深
 基于工具返回的真实数据给出建议，包括：
 - 分数段定位（与省控线对比）
 - 冲稳保院校推荐（附带概率和历史数据）
-- 专业方向建议
+- 专业方向建议（可查询各专业录取分数）
 - 注意事项和风险提示
 
 ## 输出风格
@@ -138,7 +139,7 @@ const TOOLS = [
             items: { type: 'string' },
             description: '院校代码列表，如["10001","10002"]'
           },
-          year: { type: 'integer', description: '参考年份，默认2025' }
+          year: { type: 'integer', description: '参考年份，默认使用用户选择的高考年份' }
         },
         required: ['score', 'rank', 'province', 'category', 'college_codes']
       }
@@ -218,9 +219,26 @@ const TOOLS = [
           province: { type: 'string', description: '省份' },
           category: { type: 'string', description: '科类：文科/理科/物理类/历史类' },
           score: { type: 'integer', description: '高考分数（0-750）' },
-          year: { type: 'integer', description: '年份，默认2024' }
+          year: { type: 'integer', description: '年份，默认使用用户选择的高考年份' }
         },
         required: ['province', 'category', 'score']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_major_scores',
+      description: '查询某所院校在某省某科类某年的各专业录取分数线。当用户想了解具体专业的录取分数（如"北大的计算机多少分"、"西安交大各专业录取分数"）时使用。返回每个专业的最低分、位次和录取人数。',
+      parameters: {
+        type: 'object',
+        properties: {
+          college_name: { type: 'string', description: '院校名称，如"北京大学""西安交通大学"' },
+          province: { type: 'string', description: '招生省份' },
+          category: { type: 'string', description: '科类：文科/理科/物理类/历史类' },
+          year: { type: 'integer', description: '年份，默认使用用户选择的高考年份' }
+        },
+        required: ['college_name', 'province', 'category']
       }
     }
   }
@@ -274,6 +292,14 @@ async function executeToolCall(name, args) {
       url.searchParams.set('province', args.province);
       url.searchParams.set('category', args.category);
       url.searchParams.set('score', String(args.score));
+      if (args.year) url.searchParams.set('year', String(args.year));
+      break;
+    }
+    case 'get_major_scores': {
+      url.pathname = '/api/v1/major-scores';
+      url.searchParams.set('college_name', args.college_name);
+      url.searchParams.set('province', args.province);
+      url.searchParams.set('category', args.category);
       if (args.year) url.searchParams.set('year', String(args.year));
       break;
     }
@@ -334,6 +360,7 @@ function getToolStatusText(name) {
     'search_college_by_keyword': '🔍 正在搜索院校...',
     'get_college_detail': '📖 正在获取院校详情...',
     'get_control_scores': '📏 正在查询省控线...',
+    'get_major_scores': '🎓 正在查询专业分数线...',
   };
   return map[name] || `🔧 正在调用工具: ${name}`;
 }
@@ -351,9 +378,10 @@ export async function onRequestPost(context) {
     const reqBody = await context.request.json();
     let messages = reqBody.messages || [];
 
-    // 获取省份和科类信息
+    // 获取省份、科类和年份信息
     const province = reqBody.province || '';
     const category = reqBody.category || '';
+    const year = reqBody.year || new Date().getFullYear();
     const isStream = reqBody.stream !== false; // 默认流式
 
     // 构建系统提示词
@@ -363,10 +391,15 @@ export async function onRequestPost(context) {
       if (category) {
         systemPrompt += `\n- 考生科类：${category}`;
       }
-      const newGkProvinces = ['广东','湖北','河北','江苏','湖南','福建','辽宁','重庆'];
-      if (newGkProvinces.includes(province)) {
+      systemPrompt += `\n- 高考年份：${year}年`;
+      systemPrompt += `\n- 在查询数据时，请使用${year}年的数据（如果${year}年数据不存在，则使用最接近的历史年份）`;
+      const newGkProvinces312 = ['广东','湖北','河北','江苏','湖南','福建','辽宁','重庆'];
+      const newGkProvinces312Late = { '安徽': 2024, '江西': 2024 };
+      const newGkProvinces33 = ['山东', '浙江', '海南', '北京', '天津', '上海'];
+
+      if (newGkProvinces312.includes(province) || (newGkProvinces312Late[province] && year >= newGkProvinces312Late[province])) {
         systemPrompt += `\n- 考试类型：新高考（3+1+2模式），请按「物理类」和「历史类」分析`;
-      } else if (province === '山东' || province === '浙江') {
+      } else if (newGkProvinces33.includes(province)) {
         systemPrompt += `\n- 考试类型：新高考（3+3模式，不分文理）`;
       } else {
         systemPrompt += `\n- 考试类型：传统高考（分文科/理科）`;
@@ -383,7 +416,7 @@ export async function onRequestPost(context) {
 
     // ═══ 非流式模式（兼容旧前端） ═══
     if (!isStream) {
-      const reply = await runToolLoop(messages);
+      const reply = await runToolLoop(messages, 5, year);
       return new Response(JSON.stringify({
         choices: [{ message: { role: 'assistant', content: reply }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
@@ -515,6 +548,11 @@ export async function onRequestPost(context) {
             })));
 
             console.log(`[Stream Tool Call] ${fnName}(${JSON.stringify(fnArgs)})`);
+            // 自动注入年份：如果工具支持 year 参数但 LLM 未传，自动补上用户选择的年份
+            if (year && !fnArgs.year) {
+              const yearAwareTools = ['calculate_probability', 'score_to_rank', 'get_major_scores', 'get_control_scores'];
+              if (yearAwareTools.includes(fnName)) fnArgs.year = year;
+            }
             const result = await executeToolCall(fnName, fnArgs);
 
             finalMessages.push({
@@ -546,7 +584,7 @@ export async function onRequestPost(context) {
 }
 
 // ─── Tool Calling 循环（非流式兼容） ─────────────────────────
-async function runToolLoop(messages, maxRounds = 5) {
+async function runToolLoop(messages, maxRounds = 5, defaultYear) {
   for (let round = 0; round < maxRounds; round++) {
     console.log(`[Tool Loop] Round ${round + 1}`);
 
@@ -592,6 +630,11 @@ async function runToolLoop(messages, maxRounds = 5) {
       catch { fnArgs = {}; console.error(`[Tool Error] Failed to parse args: ${tc.function.arguments}`); }
 
       console.log(`[Tool Call] ${fnName}(${JSON.stringify(fnArgs)})`);
+      // 自动注入年份
+      if (defaultYear && !fnArgs.year) {
+        const yearAwareTools = ['calculate_probability', 'score_to_rank', 'get_major_scores', 'get_control_scores'];
+        if (yearAwareTools.includes(fnName)) fnArgs.year = defaultYear;
+      }
       const result = await executeToolCall(fnName, fnArgs);
 
       messages.push({

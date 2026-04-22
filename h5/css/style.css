@@ -1,20 +1,20 @@
-/* 全局样式 */
+/* 全局样式 —— 蓝金智感配色方案 */
 :root {
-    --primary: #9B59B6;
-    --primary-light: #D5A6E6;
-    --primary-dark: #8E44AD;
-    --secondary: #F1C40F;
-    --bg: #FAF5FF;
+    --primary: #2563EB;
+    --primary-light: #DBEAFE;
+    --primary-dark: #1E40AF;
+    --secondary: #F59E0B;
+    --bg: #F0F5FF;
     --white: #FFFFFF;
-    --text: #2C3E50;
-    --text-light: #7F8C8D;
-    --border: #E8E8E8;
-    --success: #27AE60;
-    --warning: #F39C12;
-    --danger: #E74C3C;
-    --shadow: 0 4px 20px rgba(155, 89, 182, 0.15);
+    --text: #1E293B;
+    --text-light: #64748B;
+    --border: #E2E8F0;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+    --shadow: 0 4px 20px rgba(37, 99, 235, 0.10);
     --radius: 16px;
-    --radius-sm: 8px;
+    --radius-sm: 10px;
 }
 
 * {
@@ -29,6 +29,7 @@ body {
     color: var(--text);
     min-height: 100vh;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
 .page {
@@ -38,6 +39,12 @@ body {
 
 .page.active {
     display: block;
+    animation: pageIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pageIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* 按钮通用 */
@@ -45,11 +52,11 @@ button {
     border: none;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.3s ease;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 button:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
 }
 
 /* 隐藏滚动条但保留滚动功能 */
