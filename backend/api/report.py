@@ -66,6 +66,19 @@ async def generate_report(
     position = _get_position(yiben_diff, erben_diff)
 
     # ========== 2. 查找匹配院校（本一批） ==========
+    # 动态确定批次名称：优先使用"本科一批"，如果没有则用"本科批"
+    # 2025 年第五批新高考省份合并为"本科批"
+    batch1_name = "本科一批"
+    batch1_count = db.query(Score).filter(
+        Score.province == province,
+        Score.category == category,
+        Score.batch == "本科一批",
+        Score.min_rank.isnot(None),
+        ~Score.college_name.startswith("__省控线__")
+    ).count()
+    if batch1_count == 0:
+        batch1_name = "本科批"
+
     # 用历史「最差年份位次」(MAX min_rank) 作为院校入池基准。
     # 理由：概率计算也用最差年份加权值，两步标准必须一致；
     #       用 MIN 会把院校门槛刷到最乐观值，导致低层次院校错误入池。
@@ -75,8 +88,9 @@ async def generate_report(
     ).filter(
         Score.province == province,
         Score.category == category,
-        Score.batch == "本科一批",
-        Score.min_rank.isnot(None)
+        Score.batch == batch1_name,
+        Score.min_rank.isnot(None),
+        ~Score.college_name.startswith("__省控线__")
     ).group_by(Score.college_code).subquery()
 
     # 搜索范围基于「最差年份位次」：
@@ -101,12 +115,14 @@ async def generate_report(
     bao_list = []     # 保底
 
     for college, worst_rank in batch1_colleges:
-        # 获取三年历史数据
+        # 获取三年历史数据（兼容本科一批/本科批两种批次名）
+        from sqlalchemy import or_
         history = db.query(Score).filter(
             Score.college_code == college.code,
             Score.province == province,
             Score.category == category,
-            Score.batch == "本科一批"
+            or_(Score.batch == "本科一批", Score.batch == "本科批"),
+            ~Score.college_name.startswith("__省控线__")
         ).order_by(Score.year.desc()).limit(3).all()
 
         # 用加权平均位次（偏向最差年份）计算概率
@@ -155,59 +171,68 @@ async def generate_report(
     bao_top = bao_list[:8]
 
     # ========== 4. 本二批保底 ==========
-    # 同样用最差年份位次（MAX）作为基准
-    erben_rank_sub = db.query(
-        Score.college_code,
-        func.max(Score.min_rank).label("worst_rank_val")
-    ).filter(
+    # 动态确定二批批次名称：优先"本科二批"，合并后无二批则用"本科批"
+    batch2_name = "本科二批"
+    batch2_count = db.query(Score).filter(
         Score.province == province,
         Score.category == category,
         Score.batch == "本科二批",
-        Score.min_rank.isnot(None)
-    ).group_by(Score.college_code).subquery()
+        Score.min_rank.isnot(None),
+        ~Score.college_name.startswith("__省控线__")
+    ).count()
+    if batch2_count == 0:
+        batch2_name = "本科批"  # 合并后的本科批也用于保底
+        # 如果一保已经用了本科批，跳过二批查询（避免重复）
+        if batch1_name == "本科批":
+            erben_list = []
+        else:
+            # 查找本科批中位次高于考生的院校作为保底
+            erben_rank_sub = db.query(
+                Score.college_code,
+                func.max(Score.min_rank).label("worst_rank_val")
+            ).filter(
+                Score.province == province,
+                Score.category == category,
+                Score.batch == batch2_name,
+                Score.min_rank.isnot(None),
+                ~Score.college_name.startswith("__省控线__")
+            ).group_by(Score.college_code).subquery()
 
-    erben_results = db.query(
-        College,
-        erben_rank_sub.c.worst_rank_val.label("worst_rank")
-    ).join(
-        erben_rank_sub, College.code == erben_rank_sub.c.college_code
-    ).filter(
-        erben_rank_sub.c.worst_rank_val >= rank,       # 院校最差年份位次 >= 考生位次（院校门槛比你差）
-        erben_rank_sub.c.worst_rank_val <= rank * 2.0  # 最多差 2 倍
-    ).order_by(erben_rank_sub.c.worst_rank_val.asc()).limit(6).all()
+            erben_results = db.query(
+                College,
+                erben_rank_sub.c.worst_rank_val.label("worst_rank")
+            ).join(
+                erben_rank_sub, College.code == erben_rank_sub.c.college_code
+            ).filter(
+                erben_rank_sub.c.worst_rank_val >= rank,
+                erben_rank_sub.c.worst_rank_val <= rank * 2.0
+            ).order_by(erben_rank_sub.c.worst_rank_val.asc()).limit(6).all()
 
-    erben_list = []
-    for college, worst_rank in erben_results:
-        history = db.query(Score).filter(
-            Score.college_code == college.code,
+            erben_list = _build_erben_list(erben_results, db, province, category, batch2_name)
+    else:
+        # 同样用最差年份位次（MAX）作为基准
+        erben_rank_sub = db.query(
+            Score.college_code,
+            func.max(Score.min_rank).label("worst_rank_val")
+        ).filter(
             Score.province == province,
             Score.category == category,
-            Score.batch == "本科二批"
-        ).order_by(Score.year.desc()).limit(3).all()
+            Score.batch == batch2_name,
+            Score.min_rank.isnot(None),
+            ~Score.college_name.startswith("__省控线__")
+        ).group_by(Score.college_code).subquery()
 
-        avg_rank = scoring.calculate_avg_rank(history)
-        if avg_rank is None:
-            avg_rank = worst_rank
-        prob, level, _ = scoring.calculate_admission_probability(rank, avg_rank)
-        erben_list.append({
-            "code": college.code,
-            "name": college.name,
-            "province": college.province,
-            "city": college.city,
-            "type": college.type,
-            "is_985": college.is_985,
-            "is_211": college.is_211,
-            "is_double_first": college.is_double_first,
-            "latest_rank": worst_rank,
-            "probability": round(prob, 2),
-            "level": level,
-            "margin": rank - worst_rank,
-            "batch": "本科二批",
-            "history": [
-                {"year": h.year, "min_score": h.min_score, "min_rank": h.min_rank, "enrollment": h.enrollment}
-                for h in history
-            ]
-        })
+        erben_results = db.query(
+            College,
+            erben_rank_sub.c.worst_rank_val.label("worst_rank")
+        ).join(
+            erben_rank_sub, College.code == erben_rank_sub.c.college_code
+        ).filter(
+            erben_rank_sub.c.worst_rank_val >= rank,
+            erben_rank_sub.c.worst_rank_val <= rank * 2.0
+        ).order_by(erben_rank_sub.c.worst_rank_val.asc()).limit(6).all()
+
+        erben_list = _build_erben_list(erben_results, db, province, category, batch2_name)
 
     # ========== 5. 统计 ==========
     total_matched = len(batch1_colleges)
@@ -247,29 +272,69 @@ def _get_position(yiben_diff, erben_diff):
     if yiben_diff is None:
         return {"label": "数据不足", "desc": "暂无该省省控线数据", "emoji": "❓"}
     if yiben_diff >= 80:
-        return {"label": "高分段", "desc": "远超一本线，可冲击中流985/强势211", "emoji": "🏆"}
+        return {"label": "高分段", "desc": "远超本科线，可冲击中流985/强势211", "emoji": "🏆"}
     if yiben_diff >= 50:
-        return {"label": "中高分段", "desc": "超一本线较多，选择空间较大", "emoji": "🌟"}
+        return {"label": "中高分段", "desc": "超本科线较多，选择空间较大", "emoji": "🌟"}
     if yiben_diff >= 20:
-        return {"label": "中等偏上", "desc": "超一本线不多，建议在专业和城市之间取舍", "emoji": "📊"}
+        return {"label": "中等偏上", "desc": "超本科线不多，建议在专业和城市之间取舍", "emoji": "📊"}
     if yiben_diff >= 0:
-        return {"label": "压线段", "desc": "刚过一本线，需注意滑档风险，做好二批保底", "emoji": "⚡"}
+        return {"label": "压线段", "desc": "刚过本科线，需注意滑档风险，做好保底", "emoji": "⚡"}
     if erben_diff is not None and erben_diff >= 0:
-        return {"label": "二本高分段", "desc": "未达一本线但超二本线较多，二批有好学校", "emoji": "📈"}
-    return {"label": "二本段", "desc": "建议关注二批优势院校和特色专业", "emoji": "📋"}
+        return {"label": "偏低分段", "desc": "未达本科线，关注专科批优质院校", "emoji": "📈"}
+    return {"label": "低分段", "desc": "建议关注专科批优势院校和特色专业", "emoji": "📋"}
+
+
+def _build_erben_list(erben_results, db, province, category, batch_name):
+    """构建二批保底院校列表"""
+    erben_list = []
+    scoring = ScoringService(db)
+    for college, worst_rank in erben_results:
+        from sqlalchemy import or_
+        history = db.query(Score).filter(
+            Score.college_code == college.code,
+            Score.province == province,
+            Score.category == category,
+            or_(Score.batch == "本科二批", Score.batch == "本科批"),
+            ~Score.college_name.startswith("__省控线__")
+        ).order_by(Score.year.desc()).limit(3).all()
+
+        avg_rank = scoring.calculate_avg_rank(history)
+        if avg_rank is None:
+            avg_rank = worst_rank
+        prob, level, _ = scoring.calculate_admission_probability(rank, avg_rank)
+        erben_list.append({
+            "code": college.code,
+            "name": college.name,
+            "province": college.province,
+            "city": college.city,
+            "type": college.type,
+            "is_985": college.is_985,
+            "is_211": college.is_211,
+            "is_double_first": college.is_double_first,
+            "latest_rank": worst_rank,
+            "probability": round(prob, 2),
+            "level": level,
+            "margin": rank - worst_rank,
+            "batch": batch_name,
+            "history": [
+                {"year": h.year, "min_score": h.min_score, "min_rank": h.min_rank, "enrollment": h.enrollment}
+                for h in history
+            ]
+        })
+    return erben_list
 
 
 def _generate_tips(position, yiben_diff, chong_count, wen_count, bao_count):
     """生成填报建议"""
     tips = []
     if yiben_diff is not None and yiben_diff >= 0 and yiben_diff < 30:
-        tips.append(f"你超一本线仅 {yiben_diff} 分，211 机会有限，建议关注强势双非和中外合办")
+        tips.append(f"你超本科线仅 {yiben_diff} 分，211 机会有限，建议关注强势双非和中外合办")
     elif yiben_diff is not None and yiben_diff >= 30:
-        tips.append(f"你超一本线 {yiben_diff} 分，有一定选择空间")
+        tips.append(f"你超本科线 {yiben_diff} 分，有一定选择空间")
     if bao_count == 0:
-        tips.append("⚠️ 保底院校不足，建议增加保底志愿或考虑本二批")
+        tips.append("⚠️ 保底院校不足，建议增加保底志愿")
     if chong_count > wen_count * 2:
         tips.append("冲刺院校远多于稳妥院校，建议适当增加稳妥志愿")
     tips.append("稳妥志愿安全余量建议 ≥1500 名")
-    tips.append("记得同时填报本科二批作为保底")
+    tips.append("合理分配冲稳保比例（建议 2:4:4 或 3:4:3）")
     return tips
