@@ -15,6 +15,31 @@ from models import College, Score, ScoreRankTable
 
 router = APIRouter(prefix="/api/v1", tags=["tools"])
 
+# 新高考科类 → 老高考科类映射（Score 表分数线数据按老高考存储）
+CATEGORY_MAP = {
+    '物理类': '理科',
+    '历史类': '文科',
+}
+CATEGORY_REVERSE_MAP = {
+    '理科': '物理类',
+    '文科': '历史类',
+}
+
+def normalize_category(category: str) -> str:
+    """将新高考科类映射到老高考科类（用于查询 Score 表）"""
+    return CATEGORY_MAP.get(category, category)
+
+def denormalize_category(category: str, year: int, province: str) -> str:
+    """将老高考科类映射回新高考科类（用于返回给前端）"""
+    # 如果已经是新高考科类，直接返回
+    if category in CATEGORY_MAP:
+        return category
+    # 如果是老高考科类且该省该年已实施新高考，转换
+    from config import settings
+    if category in CATEGORY_REVERSE_MAP:
+        return CATEGORY_REVERSE_MAP[category]
+    return category
+
 
 # ========== 画像管理工具 ==========
 
@@ -112,12 +137,14 @@ async def calculate_probability(req: ProbabilityRequest, db: Session = Depends(g
     scoring = ScoringService(db)
     # 如果未传年份，使用当前年份
     year = req.year or datetime.now().year
+    # 新高考科类映射（物理类→理科，历史类→文科）
+    query_category = normalize_category(req.category)
     results = scoring.batch_calculate_probability(
         user_rank=req.rank,
         college_codes=req.college_codes,
         province=req.province,
         year=year,
-        category=req.category
+        category=query_category
     )
 
     # 补充院校名称信息
@@ -155,10 +182,12 @@ async def lookup_scores(req: ScoreLookupRequest, db: Session = Depends(get_db)):
 
     返回最近5年的录取数据，包含最低分、最低排名、平均分等。
     """
+    # 新高考科类映射
+    query_category = normalize_category(req.category)
     scores = db.query(Score).filter(
         Score.college_code == req.college_code,
         Score.province == req.province,
-        Score.category == req.category
+        Score.category == query_category
     ).order_by(Score.year.desc()).limit(5).all()
 
     college = db.query(College).filter(College.code == req.college_code).first()
@@ -213,13 +242,16 @@ async def recommend_colleges(
     基于 rank 查找有该省该科类录取数据的院校，并按排名排序。
     Agent 可用此接口获取候选院校列表，再调用 /probability 计算具体概率。
     """
+    # 新高考科类映射（物理类→理科，历史类→文科）
+    query_category = normalize_category(category)
+
     # 查找有该省该科类历史数据的院校，取最新一年的录取位次作为排序依据
     latest_scores = db.query(
         Score.college_code,
         func.min(Score.min_rank).label("latest_rank")
     ).filter(
         Score.province == province,
-        Score.category == category,
+        Score.category == query_category,
         Score.min_rank.isnot(None)
     ).group_by(Score.college_code).subquery()
 
@@ -227,7 +259,7 @@ async def recommend_colleges(
         College.code.in_(
             db.query(Score.college_code).filter(
                 Score.province == province,
-                Score.category == category
+                Score.category == query_category
             ).distinct()
         )
     )
@@ -297,6 +329,8 @@ async def get_major_scores(
     # 如果未传年份，使用当前年份
     if not year:
         year = datetime.now().year
+    # 新高考科类映射
+    query_category = normalize_category(category)
     """
     查询某所院校在某省某科类某年的各专业录取分数线
 
@@ -307,7 +341,7 @@ async def get_major_scores(
     scores = db.query(Score).filter(
         Score.college_name == college_name,
         Score.province == province,
-        Score.category == category,
+        Score.category == query_category,
         Score.year == year,
         Score.major_scores.isnot(None)
     ).all()
@@ -317,14 +351,14 @@ async def get_major_scores(
         latest = db.query(func.max(Score.year)).filter(
             Score.college_name == college_name,
             Score.province == province,
-            Score.category == category,
+            Score.category == query_category,
             Score.major_scores.isnot(None)
         ).scalar()
         if latest:
             scores = db.query(Score).filter(
                 Score.college_name == college_name,
                 Score.province == province,
-                Score.category == category,
+                Score.category == query_category,
                 Score.year == latest,
                 Score.major_scores.isnot(None)
             ).all()
