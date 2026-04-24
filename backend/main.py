@@ -18,7 +18,7 @@ from api.llm_proxy import router as llm_proxy_router
 # 前端静态文件目录
 STATIC_DIR = Path(__file__).parent / "static"
 # API / 文档路径前缀（不由 SPA 处理）
-_API_PREFIXES = ("/api", "/docs", "/redoc", "/openapi.json")
+_API_PREFIXES = ("/api", "/v1", "/docs", "/redoc", "/openapi.json", "/health")
 
 # 配置日志
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
