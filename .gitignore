@@ -21,3 +21,9 @@ logs/
 # Temp files
 *.tmp
 .temp/
+
+# Local dev (contains API keys)
+server.js
+server.js.bak
+start.sh
+.wrangler/
