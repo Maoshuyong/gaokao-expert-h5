@@ -45,6 +45,7 @@ start.sh
 
 # Cloudflare
 .wrangler/
+.hermes/
 
 # Data (数据库由种子脚本在启动时自动生成)
 backend/data/gaokao.db

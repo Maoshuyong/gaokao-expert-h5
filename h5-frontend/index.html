@@ -492,6 +492,21 @@
             </div>
         </div>
 
+        <!-- 专业库页面 -->
+        <div id="major-page" class="page">
+            <div class="major-container">
+                <div class="major-header">
+                    <button class="back-btn" onclick="showPage('home')">←</button>
+                    <h3 class="major-title">专业库</h3>
+                    <button class="menu-btn" onclick="toggleMajorSearch()">🔍</button>
+                </div>
+                <div class="major-search" id="major-search" style="display:none">
+                    <input type="text" id="major-search-input" class="major-search-input" placeholder="搜索专业..." oninput="filterMajors(this.value)">
+                </div>
+                <div class="major-categories" id="major-categories"></div>
+            </div>
+        </div>
+
         <div class="bottom-nav">
             <div class="nav-item" onclick="showPage('home')">
                 <span class="nav-icon">🏠</span>
@@ -501,6 +516,10 @@
                 <span class="nav-icon">💬</span>
                 <span>对话</span>
             </div>
+            <div class="nav-item" onclick="showPage('major-page')">
+                <span class="nav-icon">📚</span>
+                <span>专业库</span>
+            </div>
             <div class="nav-item active">
                 <span class="nav-icon">👤</span>
                 <span>我的</span>
@@ -508,6 +527,7 @@
         </div>
     </div>
 
+    <script src="js/majors.js"></script>
     <script src="js/mbti.js"></script>
     <script src="js/app.js"></script>
 </body>

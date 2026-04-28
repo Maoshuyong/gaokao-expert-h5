@@ -1,0 +1,28 @@
+<!-- 专业库页面 -->
+<div id="major-page" class="page">
+    <div class="major-container">
+        <!-- 顶部栏 -->
+        <div class="major-header">
+            <button class="back-btn" onclick="showPage('home')">←</button>
+            <h3 class="major-title">专业库</h3>
+            <button class="menu-btn" onclick="showMajorSearch()">🔍</button>
+        </div>
+
+        <!-- 搜索栏（默认隐藏） -->
+        <div class="major-search" id="major-search" style="display:none">
+            <input type="text" id="major-search-input" class="major-search-input" placeholder="搜索专业名称..." oninput="filterMajors(this.value)">
+        </div>
+
+        <!-- 学科门类列表 -->
+        <div class="major-categories" id="major-categories"></div>
+
+        <!-- 专业详情（默认隐藏） -->
+        <div class="major-detail" id="major-detail" style="display:none">
+            <div class="major-detail-header">
+                <button class="back-btn" onclick="hideMajorDetail()">←</button>
+                <h4 class="major-detail-title" id="major-detail-name"></h4>
+            </div>
+            <div class="major-detail-body" id="major-detail-body"></div>
+        </div>
+    </div>
+</div>
