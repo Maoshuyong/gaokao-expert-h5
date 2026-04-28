@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.vscode/
+.idea/
+venv/
+.venv/
+
+# 爬虫中间产物（CSV 原始数据，已导出为 JSON）
+score_rank_data/
+
+# 数据库文件（本地开发用）
+data/gaokao.db

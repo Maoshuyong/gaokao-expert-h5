@@ -1,0 +1,7 @@
+name = "gaokao-expert-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+UPSTREAM_BASE = "https://api.siliconflow.cn"
+MODEL = "deepseek-ai/DeepSeek-V3"

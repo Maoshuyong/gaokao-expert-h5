@@ -1,0 +1,13 @@
+{
+  "name": "gaokao-expert-h5",
+  "version": "2.0.0",
+  "description": "高报专家 H5 - WorkBuddy Agent 版",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev":   "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

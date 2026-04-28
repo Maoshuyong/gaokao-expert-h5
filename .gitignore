@@ -1,13 +1,29 @@
-# Node
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.local
 
-# Mac
+# Environment
+.env
+.env.local
+
+# Mac / OS
 .DS_Store
 *.swp
 *~
+Thumbs.db
 
 # IDE
 .vscode/
@@ -26,4 +42,10 @@ logs/
 server.js
 server.js.bak
 start.sh
+
+# Cloudflare
 .wrangler/
+
+# Data (数据库由种子脚本在启动时自动生成)
+backend/data/gaokao.db
+backend/data/gaokao.db-journal
