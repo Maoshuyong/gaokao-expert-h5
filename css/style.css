@@ -1,0 +1,86 @@
+/* 全局样式 -- 蓝金智感配色方案 */
+:root {
+    --primary: #2563EB;
+    --primary-light: #DBEAFE;
+    --primary-dark: #1E40AF;
+    --secondary: #F59E0B;
+    --bg: #F0F5FF;
+    --white: #FFFFFF;
+    --text: #1E293B;
+    --text-light: #64748B;
+    --border: #E2E8F0;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+    --shadow: 0 4px 20px rgba(37, 99, 235, 0.10);
+    --radius: 16px;
+    --radius-sm: 10px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+.page {
+    display: none;
+    min-height: 100vh;
+}
+
+.page.active {
+    display: block;
+    animation: pageIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pageIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 按钮通用 */
+button {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+button:active {
+    transform: scale(0.97);
+}
+
+/* 隐藏滚动条但保留滚动功能 */
+::-webkit-scrollbar {
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* API连接状态指示器 */
+.conn-status {
+    font-size: 10px;
+    margin-left: 6px;
+    cursor: help;
+}
+.conn-status.connected {
+    color: var(--success);
+}
+.conn-status.disconnected {
+    color: var(--danger);
+}
+.conn-status.checking {
+    color: var(--warning);
+}
