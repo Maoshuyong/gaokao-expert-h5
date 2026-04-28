@@ -153,20 +153,6 @@
                     <p class="info-hint">标 <em class="required">*</em> 为必填项<br>不知道位次？先填分数，AI 帮你估算</p>
                 </div>
 
-                <!-- MBTI 快速入口 -->
-                <div class="mbti-quick-panel" id="mbti-quick-panel">
-                    <div class="mbti-result-row" id="mbti-result-row" style="display:none">
-                        <span class="mbti-badge" id="mbti-badge-display"></span>
-                        <span class="mbti-desc" id="mbti-desc-display"></span>
-                    </div>
-                    <div class="mbti-input-row" id="mbti-input-row">
-                        <span class="info-label">MBTI</span>
-                        <input type="text" id="quick-mbti" class="info-input" placeholder="如 INTJ（选填）" maxlength="4" style="text-transform:uppercase">
-                        <button class="mbti-test-btn" id="mbti-test-btn">测一测</button>
-                    </div>
-                    <p class="info-hint">了解性格有助于推荐匹配的专业方向</p>
-                </div>
-
                 <button id="start-chat" class="start-btn">开始咨询</button>
             </div>
 
@@ -277,6 +263,7 @@
                     <span>高报专家</span>
                 </div>
                 <button class="menu-btn" onclick="generateReport()" title="生成报告">📋</button>
+                <button class="menu-btn" onclick="startMbtiTest()" title="MBTI性格测试">🧠</button>
             </div>
 
             <div class="chat-messages" id="messages">

@@ -1513,29 +1513,7 @@ function init() {
     initProvinceSelect();
     // 初始化后刷新科类选项（依赖年份和省份）
     refreshCategoryOptions();
-    restoreMbti();
-
-    // MBTI "测一测"按钮
-    document.getElementById('mbti-test-btn')?.addEventListener('click', startMbtiTest);
-
-    // MBTI 手动输入：用户填入4个字母后自动保存
-    const mbtiInput = document.getElementById('quick-mbti');
-    mbtiInput?.addEventListener('blur', () => {
-        const val = mbtiInput.value.trim().toUpperCase();
-        if (val && /^[EI][SN][TF][JP]$/.test(val) && MBTI_TYPES[val]) {
-            const info = MBTI_TYPES[val];
-            state.mbti = { type: val, name: info.name, tags: info.tags, majors: info.majors, desc: info.desc };
-            localStorage.setItem('gaokao_mbti', JSON.stringify(state.mbti));
-            updateMbtiQuickPanel();
-            console.log('MBTI 手动设置:', val, info.name);
-        } else if (val) {
-            mbtiInput.value = '';
-            mbtiInput.placeholder = '格式如 INTJ';
-        }
-    });
-
-    // MBTI 结果行点击可重新测试
-    document.getElementById('mbti-result-row')?.addEventListener('click', startMbtiTest);
+    // 注意：MBTI 测试已移至选专业环节，不在首页初始化
 
     // 角色初始化：有角色才跳过角色选择页
     if (state.userRole && localStorage.getItem('gaokao_role')) {
